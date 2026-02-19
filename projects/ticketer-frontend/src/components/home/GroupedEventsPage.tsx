@@ -1,54 +1,57 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowLeft, FilterX } from 'lucide-react'
 import { useOnboardingStore } from '../../store/onboardingStore'
-import { events, categories, organisers } from '../../data/mockData'
+import { listEvents } from '../../api/events'
+import { apiEventToMock } from '../../utils/eventAdapters'
+import type { Event } from '../../data/mockData'
 import { EventCard } from './EventCard'
+
+const CATEGORY_TITLES: Record<string, string> = {
+  'events': 'Events',
+  'free-entry': 'Free Entry',
+  'workshops': 'Workshops',
+  'fests': 'Fests',
+  'dj-nights': 'DJ Nights',
+  'sports': 'Sports',
+}
 
 export const GroupedEventsPage = () => {
   const navigate = useNavigate()
   const selectedCategoryId = useOnboardingStore((s) => s.selectedCategoryId)
   const selectedOrganiserId = useOnboardingStore((s) => s.selectedOrganiserId)
+  const [events, setEvents] = useState<Event[]>([])
+  const [loading, setLoading] = useState(true)
 
   const isCategoryView = !!selectedCategoryId
   const isOrganiserView = !!selectedOrganiserId
 
-  let title = 'Events'
-  let filteredEvents = events
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    listEvents()
+      .then((evts) => {
+        if (cancelled) return
+        let filtered = evts
+        if (isOrganiserView) {
+          filtered = evts.filter((e) => e.organizerAddress === selectedOrganiserId)
+        } else if (isCategoryView) {
+          if (selectedCategoryId === 'free-entry') {
+            filtered = evts.filter((e) => parseFloat(e.priceAlgo) === 0)
+          }
+          // 'events' and others: show all (API has no category)
+        }
+        setEvents(filtered.map(apiEventToMock))
+      })
+      .catch(() => { if (!cancelled) setEvents([]) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [selectedCategoryId, selectedOrganiserId, isCategoryView, isOrganiserView])
 
-  if (isCategoryView) {
-    const category = categories.find((c) => c.id === selectedCategoryId)
-    switch (selectedCategoryId) {
-      case 'all':
-      case 'events':
-        title = selectedCategoryId === 'events' ? 'Events' : 'All Events'
-        filteredEvents = events
-        break
-      case 'fests':
-        title = 'Fests'
-        filteredEvents = events.filter((e) => e.category === 'cultural')
-        break
-      case 'dj-nights':
-        title = 'DJ Nights'
-        filteredEvents = events.filter(
-          (e) =>
-            e.subcategory.toLowerCase().includes('dj') || e.subcategory.toLowerCase().includes('electronic')
-        )
-        break
-      case 'free-entry':
-        title = 'Free Entry'
-        filteredEvents = events.filter((e) => e.isFree)
-        break
-      default:
-        title = category?.label ?? selectedCategoryId ?? 'Events'
-        filteredEvents = events.filter((e) => e.category === selectedCategoryId)
-    }
-  } else if (isOrganiserView) {
-    const organiser = organisers.find((o) => o.id === selectedOrganiserId)
-    title = organiser?.name ?? 'Organiser Events'
-    filteredEvents = events.filter((e) => e.organiser === selectedOrganiserId)
-  }
+  let title = 'Events'
+  if (isOrganiserView) title = 'Organiser events'
+  else if (isCategoryView) title = CATEGORY_TITLES[selectedCategoryId ?? ''] ?? 'Events'
 
   const handleBack = () => navigate('/student-home')
 
@@ -71,9 +74,15 @@ export const GroupedEventsPage = () => {
       </div>
 
       <div className="max-w-3xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-8 lg:py-10">
-        {filteredEvents.length > 0 ? (
+        {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5 lg:gap-6">
-            {filteredEvents.map((event) => (
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="h-[300px] rounded-2xl bg-tc-surface border border-tc-border animate-pulse" />
+            ))}
+          </div>
+        ) : events.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5 lg:gap-6">
+            {events.map((event) => (
               <EventCard key={event.id} event={event} variant="large" />
             ))}
           </div>
@@ -86,7 +95,9 @@ export const GroupedEventsPage = () => {
               No events found
             </h3>
             <p className="font-body text-[14px] md:text-[15px] text-tc-muted max-w-xs md:max-w-sm">
-              We couldn't find any events matching this category at the moment.
+              {isOrganiserView
+                ? 'This organiser has no events yet.'
+                : 'No events match this category right now. Check back later.'}
             </p>
           </div>
         )}

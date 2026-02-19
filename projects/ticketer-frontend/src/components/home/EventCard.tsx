@@ -5,6 +5,7 @@ import { Bookmark } from 'lucide-react'
 import type { Event } from '../../data/mockData'
 import { organisers, categories } from '../../data/mockData'
 import { useOnboardingStore } from '../../store/onboardingStore'
+import { ellipseAddress } from '../../utils/ellipseAddress'
 
 type CardVariant = 'hero' | 'large' | 'medium' | 'compact' | 'row'
 
@@ -26,7 +27,12 @@ const formatDate = (iso: string) => {
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
 }
 
-const getOrganiserName = (id: string) => organisers.find((o) => o.id === id)?.name ?? id
+const getOrganiserName = (id: string) => {
+  const name = organisers.find((o) => o.id === id)?.name
+  if (name) return name
+  if (id.length >= 50) return ellipseAddress(id)
+  return id
+}
 
 const getCategoryLabel = (catId: string) => categories.find((c) => c.id === catId)?.label ?? catId
 

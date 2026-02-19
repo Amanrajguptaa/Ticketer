@@ -1,13 +1,4 @@
-import React from 'react'
-import { events } from '../../data/mockData'
-import { EventCard } from './EventCard'
+import { FeaturedEventFromApi } from './FeaturedEventFromApi'
 
-export const HeroBanner = () => {
-  const featured = events.find((e) => e.isFeatured)
-  if (!featured) return null
-  return (
-    <div className="w-full px-4">
-      <EventCard event={featured} variant="hero" />
-    </div>
-  )
-}
+/** Hero banner: featured event from API with Buy now and same friendly error handling as EventPage. */
+export const HeroBanner = () => <FeaturedEventFromApi />
