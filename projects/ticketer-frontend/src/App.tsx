@@ -9,6 +9,7 @@ import OrganizerDashboard from './pages/OrganizerDashboard'
 import StudentTickets from './pages/StudentTickets'
 import MyTickets from './pages/MyTickets'
 import GateVerifier from './pages/GateVerifier'
+import VerifyTicketPage from './pages/VerifyTicketPage'
 import StudentHome from './pages/StudentHome'
 import StudentProfilePage from './pages/StudentProfilePage'
 import { EventPage } from './components/home/EventPage'
@@ -76,6 +77,7 @@ export default function App() {
               <Route path="/my-tickets" element={<MyTickets />} />
               <Route path="/tickets" element={<StudentTickets />} />
               <Route path="/verify" element={<GateVerifier />} />
+              <Route path="/verify-ticket" element={<VerifyTicketPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </BrowserRouter>
