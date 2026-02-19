@@ -57,7 +57,6 @@ export default function Landing() {
       setRole(selectedRole)
       if (selectedRole === 'organizer') navigate('/organizer')
       else if (selectedRole === 'student') navigate('/tickets')
-      else navigate('/verify')
     } catch (err) {
       setSignUpError(err instanceof Error ? err.message : 'Sign up failed')
     } finally {
@@ -168,14 +167,6 @@ export default function Landing() {
                 <span className="font-semibold block mb-1">Student / Attendee</span>
                 <span className="text-sm text-gray-400">Buy tickets, view My Tickets</span>
               </button>
-              <button
-                onClick={() => handleSignUp('gate')}
-                disabled={signUpLoading}
-                className="p-4 rounded-lg border-2 border-white/20 hover:border-[#1A56DB] hover:bg-white/5 transition-colors text-left disabled:opacity-50"
-              >
-                <span className="font-semibold block mb-1">Gate Verifier</span>
-                <span className="text-sm text-gray-400">Scan QR, verify NFT at entry</span>
-              </button>
             </div>
             {signUpLoading && <p className="text-gray-400 text-sm mt-4">Saving…</p>}
           </section>
@@ -208,7 +199,7 @@ export default function Landing() {
               className="btn font-semibold rounded-lg px-6 py-3"
               style={{ backgroundColor: '#1A56DB', color: '#fff' }}
             >
-              Go to {role === 'organizer' ? 'Dashboard' : role === 'student' ? 'My Tickets' : 'Gate Verifier'}
+              Go to {role === 'organizer' ? 'Dashboard' : role === 'student' ? 'My Tickets' : 'Verify tickets'}
             </button>
           </section>
         )}

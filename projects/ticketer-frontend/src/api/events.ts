@@ -86,6 +86,16 @@ export async function listMyTickets(wallet: string): Promise<Ticket[]> {
   return res.json()
 }
 
+export async function getTicket(ticketId: string): Promise<Ticket | null> {
+  const res = await fetch(
+    `${API_BASE}/api/tickets/${encodeURIComponent(ticketId)}`,
+    { method: 'GET', headers: { Accept: 'application/json' } },
+  )
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error('Failed to fetch ticket')
+  return res.json()
+}
+
 export interface VerifyResult {
   valid: boolean
   reason?: string
