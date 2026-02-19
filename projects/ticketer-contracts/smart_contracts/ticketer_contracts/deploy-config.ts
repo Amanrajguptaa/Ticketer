@@ -5,7 +5,7 @@ import { TicketerContractsFactory } from '../artifacts/ticketer_contracts/Ticket
 export async function deploy() {
   console.log('=== Deploying TicketerContracts ===')
 
-  const algorand = AlgorandClient.fromEnvironment()
+  const algorand = AlgorandClient.testNet()
   const deployer = await algorand.account.fromEnvironment('DEPLOYER')
 
   const factory = algorand.client.getTypedAppFactory(TicketerContractsFactory, {
