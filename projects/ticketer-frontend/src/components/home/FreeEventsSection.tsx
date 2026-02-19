@@ -3,13 +3,27 @@ import { motion } from 'framer-motion'
 import { useHomeFeed } from '../../hooks/useHomeFeed'
 import { SectionLabel } from './SectionLabel'
 import { EventCard } from './EventCard'
+import { EmptyEventsSection } from './EmptyEventsSection'
 
 const MAX_ROWS = 4
 
 export const FreeEventsSection = () => {
-  const { free } = useHomeFeed()
+  const { loading, free } = useHomeFeed()
   const visible = free.slice(0, MAX_ROWS)
   const hasMore = free.length > MAX_ROWS
+
+  if (loading) {
+    return (
+      <section className="w-full">
+        <SectionLabel label="Free Entry" />
+        <div className="mt-3 px-4 flex flex-col gap-2">
+          {[1, 2].map((i) => (
+            <div key={i} className="h-[72px] rounded-xl bg-tc-surface border border-tc-border animate-pulse" />
+          ))}
+        </div>
+      </section>
+    )
+  }
 
   if (visible.length === 0) return null
 
@@ -32,6 +46,7 @@ export const FreeEventsSection = () => {
       {hasMore && (
         <div className="flex justify-center mt-3">
           <motion.button
+            type="button"
             whileHover={{ x: 2 }}
             whileTap={{ scale: 0.97 }}
             className="font-body font-medium text-[12px] text-tc-lime hover:text-tc-lime/80 transition-colors"

@@ -5,6 +5,7 @@ import { RoleSelection } from '../components/landing-v2/RoleSelection'
 import { OnboardingShell } from '../components/landing-v2/OnboardingShell'
 import { OnboardingComplete } from '../components/landing-v2/OnboardingComplete'
 import GateVerifier from './GateVerifier'
+import VerifyTicketPage from './VerifyTicketPage'
 import OrganizerDashboard from './OrganizerDashboard'
 import StudentTickets from './StudentTickets'
 import { useOnboardingStore } from '../store/onboardingStore'
@@ -90,8 +91,13 @@ export default function LandingPageV2() {
   }, [phase, resetOnboarding])
 
   useEffect(() => {
-    if (phase === 'home' && role === 'student') {
+    if (phase !== 'home') return
+    if (role === 'student') {
       navigate('/student-home', { replace: true })
+      return
+    }
+    if (role === 'guard') {
+      navigate('/verify-ticket', { replace: true })
     }
   }, [phase, role, navigate])
 
@@ -123,7 +129,7 @@ export default function LandingPageV2() {
         )
       case 'home':
         if (role === 'guard') {
-          return <GateVerifier key="gate-guard" />
+          return <VerifyTicketPage key="verify-ticket" />
         }
         if (role === 'organiser') {
           return <OrganizerDashboard key="organiser-dashboard" />

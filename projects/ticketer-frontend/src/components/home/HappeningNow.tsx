@@ -1,6 +1,8 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { events } from '../../data/mockData'
+import { listEvents } from '../../api/events'
+import { apiEventToMock } from '../../utils/eventAdapters'
+import type { Event } from '../../data/mockData'
 import { EventCard } from './EventCard'
 
 const UrgencyPulse = () => (
@@ -14,18 +16,62 @@ const UrgencyPulse = () => (
   </span>
 )
 
+const todayStart = new Date()
+todayStart.setHours(0, 0, 0, 0)
+const tomorrowEnd = new Date(todayStart)
+tomorrowEnd.setDate(tomorrowEnd.getDate() + 2)
+
+function isHappeningSoon(apiDate: string): boolean {
+  const d = new Date(apiDate)
+  return d >= todayStart && d <= tomorrowEnd
+}
+
 export const HappeningNow = () => {
-  const urgentEvents = events.filter(
-    (e) => !e.isSoldOut && (e.isUrgent || e.soldTickets / e.totalTickets > 0.85)
-  )
-  if (urgentEvents.length === 0) return null
+  const [events, setEvents] = useState<Event[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    listEvents()
+      .then((evts) => {
+        if (cancelled) return
+        const soon = evts
+          .filter((e) => isHappeningSoon(e.date) && (e.ticketSupply - (e.ticketsSold ?? 0) > 0))
+          .slice(0, 8)
+          .map(apiEventToMock)
+        setEvents(soon)
+      })
+      .catch(() => { if (!cancelled) setEvents([]) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="w-full">
+        <div className="flex items-center justify-center gap-2 px-4 mb-1">
+          <div className="h-[1px] bg-tc-border flex-1 max-w-[40px]" />
+          <div className="h-3 w-24 rounded bg-tc-dim animate-pulse" />
+          <div className="h-[1px] bg-tc-border flex-1 max-w-[40px]" />
+        </div>
+        <div className="mt-3 flex gap-3 overflow-hidden px-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="shrink-0 w-[160px] h-[200px] rounded-2xl bg-tc-surface border border-tc-border animate-pulse" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (events.length === 0) return null
+
   return (
     <div className="w-full">
       <div className="flex items-center justify-center gap-2 px-4 mb-1">
         <div className="h-[1px] bg-gradient-to-r from-transparent to-tc-border flex-1 max-w-[40px]" />
         <UrgencyPulse />
         <span className="font-body font-semibold text-[11px] tracking-[0.18em] text-tc-muted uppercase whitespace-nowrap select-none">
-          Happening Tonight
+          Happening Soon
         </span>
         <UrgencyPulse />
         <div className="h-[1px] bg-gradient-to-l from-transparent to-tc-border flex-1 max-w-[40px]" />
@@ -34,7 +80,7 @@ export const HappeningNow = () => {
         className="mt-3 flex gap-3 overflow-x-auto px-4 scrollbar-none
           [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
       >
-        {urgentEvents.map((event) => (
+        {events.map((event) => (
           <EventCard key={event.id} event={event} variant="compact" />
         ))}
       </div>

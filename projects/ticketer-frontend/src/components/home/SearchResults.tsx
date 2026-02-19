@@ -1,7 +1,9 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { SearchX } from 'lucide-react'
-import { events } from '../../data/mockData'
+import { listEvents } from '../../api/events'
+import { apiEventToMock } from '../../utils/eventAdapters'
+import type { Event } from '../../data/mockData'
 import { EventCard } from './EventCard'
 
 interface SearchResultsProps {
@@ -10,24 +12,56 @@ interface SearchResultsProps {
 
 export const SearchResults = ({ query }: SearchResultsProps) => {
   const lowerQuery = query.toLowerCase().trim()
+  const [events, setEvents] = useState<Event[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!lowerQuery) {
+      setEvents([])
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    listEvents()
+      .then((evts) => {
+        if (cancelled) return
+        const filtered = evts.filter((e) => {
+          const inName = e.name.toLowerCase().includes(lowerQuery)
+          const inVenue = e.venue.toLowerCase().includes(lowerQuery)
+          const inOrganiser = e.organizerAddress.toLowerCase().includes(lowerQuery)
+          return inName || inVenue || inOrganiser
+        })
+        setEvents(filtered.map(apiEventToMock))
+      })
+      .catch(() => { if (!cancelled) setEvents([]) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [lowerQuery])
+
   if (!lowerQuery) return null
 
-  const results = events.filter((e) => {
-    const inTitle = e.title.toLowerCase().includes(lowerQuery)
-    const inOrganiser = e.organiser.toLowerCase().includes(lowerQuery)
-    const inVenue = e.venue.toLowerCase().includes(lowerQuery)
-    const inTags = e.tags.some((t) => t.toLowerCase().includes(lowerQuery))
-    return inTitle || inOrganiser || inVenue || inTags
-  })
+  if (loading) {
+    return (
+      <div className="w-full md:max-w-3xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 py-6 min-h-[60vh]">
+        <div className="h-6 w-48 rounded bg-tc-dim animate-pulse mb-4" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="h-[300px] rounded-2xl bg-tc-surface border border-tc-border animate-pulse" />
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="w-full md:max-w-3xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 py-6 min-h-[60vh]">
       <h2 className="font-display font-bold text-[18px] text-tc-white mb-4">
-        {results.length} result{results.length !== 1 ? 's' : ''} for &quot;{query}&quot;
+        {events.length} result{events.length !== 1 ? 's' : ''} for &quot;{query}&quot;
       </h2>
-      {results.length > 0 ? (
+      {events.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {results.map((event) => (
+          {events.map((event) => (
             <EventCard key={event.id} event={event} variant="large" />
           ))}
         </div>

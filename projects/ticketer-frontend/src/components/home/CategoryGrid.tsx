@@ -1,33 +1,27 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { CalendarDays, Wrench, Sparkles, Headphones, Trophy, DoorOpen } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { events } from '../../data/mockData'
+import { listEvents } from '../../api/events'
 import { useOnboardingStore } from '../../store/onboardingStore'
-import type { Event } from '../../data/mockData'
+import { EmptyEventsSection } from './EmptyEventsSection'
 
 interface TileDef {
   id: string
   label: string
   icon: LucideIcon
   color: string
-  match: (e: Event) => boolean
+  getCount: (total: number, freeCount: number) => number
 }
 
 const TILES: TileDef[] = [
-  { id: 'events', label: 'Events', icon: CalendarDays, color: '#C8E64A', match: () => true },
-  { id: 'workshops', label: 'Workshops', icon: Wrench, color: '#FF6B35', match: (e) => e.category === 'workshops' },
-  { id: 'fests', label: 'Fests', icon: Sparkles, color: '#F59E0B', match: (e) => e.category === 'cultural' },
-  {
-    id: 'dj-nights',
-    label: 'DJ Nights',
-    icon: Headphones,
-    color: '#EC4899',
-    match: (e) => e.subcategory.toLowerCase().includes('dj') || e.subcategory.toLowerCase().includes('electronic'),
-  },
-  { id: 'sports', label: 'Sports', icon: Trophy, color: '#3B82F6', match: (e) => e.category === 'sports' },
-  { id: 'free-entry', label: 'Free Entry', icon: DoorOpen, color: '#00D4AA', match: (e) => e.isFree || e.price < 0.5 },
+  { id: 'events', label: 'Events', icon: CalendarDays, color: '#C8E64A', getCount: (t) => t },
+  { id: 'workshops', label: 'Workshops', icon: Wrench, color: '#FF6B35', getCount: () => 0 },
+  { id: 'fests', label: 'Fests', icon: Sparkles, color: '#F59E0B', getCount: () => 0 },
+  { id: 'dj-nights', label: 'DJ Nights', icon: Headphones, color: '#EC4899', getCount: () => 0 },
+  { id: 'sports', label: 'Sports', icon: Trophy, color: '#3B82F6', getCount: () => 0 },
+  { id: 'free-entry', label: 'Free Entry', icon: DoorOpen, color: '#00D4AA', getCount: (_, free) => free },
 ]
 
 const containerVariants = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } }
@@ -58,10 +52,49 @@ const CategoryTile = ({ tile, count, Icon }: { tile: TileDef; count: number; Ico
 }
 
 export const CategoryGrid = () => {
+  const [total, setTotal] = useState(0)
+  const [freeCount, setFreeCount] = useState(0)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    listEvents()
+      .then((evts) => {
+        if (cancelled) return
+        setTotal(evts.length)
+        setFreeCount(evts.filter((e) => parseFloat(e.priceAlgo) === 0).length)
+      })
+      .catch(() => { if (!cancelled) setTotal(0); setFreeCount(0) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="w-full px-4 grid grid-cols-3 gap-2">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <div key={i} className="h-[84px] rounded-2xl bg-tc-surface border border-tc-border animate-pulse" />
+        ))}
+      </div>
+    )
+  }
+
+  if (total === 0) {
+    return (
+      <div className="w-full px-4">
+        <EmptyEventsSection
+          variant="compact"
+          title="No events to explore yet"
+          message="When organisers add events, you can browse by category here."
+        />
+      </div>
+    )
+  }
+
   return (
     <motion.div variants={containerVariants} initial="show" animate="show" className="w-full px-4 grid grid-cols-3 gap-2">
       {TILES.map((tile) => {
-        const count = events.filter(tile.match).length
+        const count = tile.getCount(total, freeCount)
         const Icon = tile.icon
         return <CategoryTile key={tile.id} tile={tile} count={count} Icon={Icon} />
       })}

@@ -1,45 +1,13 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { useWallet } from '@txnlab/use-wallet-react'
-import { events } from '../../data/mockData'
-import type { Event as MockEvent } from '../../data/mockData'
 import { listEvents, listMyTickets } from '../../api/events'
 import type { Event as ApiEvent } from '../../api/events'
+import { apiEventToMock } from '../../utils/eventAdapters'
+import type { Event as MockEvent } from '../../data/mockData'
 import { SectionLabel } from './SectionLabel'
 import { EventCard } from './EventCard'
-
-const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&q=80'
-
-/** Map API event to mock Event shape so EventCard can render it. */
-function apiEventToMock(api: ApiEvent): MockEvent {
-  const d = new Date(api.date)
-  const dateStr = d.toISOString().slice(0, 10)
-  const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-  const sold = api.ticketsSold ?? 0
-  const remaining = api.ticketSupply - sold
-  const price = parseFloat(api.priceAlgo)
-  return {
-    id: api.id,
-    title: api.name,
-    category: 'Event',
-    subcategory: 'On sale',
-    organiser: api.organizerAddress,
-    venue: api.venue,
-    date: dateStr,
-    time: timeStr,
-    price,
-    priceINR: Math.round(price * 90),
-    totalTickets: api.ticketSupply,
-    soldTickets: sold,
-    coverImage: api.coverImageUrl || PLACEHOLDER_IMAGE,
-    isFeatured: true,
-    isFree: price === 0,
-    isSoldOut: remaining <= 0,
-    isUrgent: remaining > 0 && remaining <= 20,
-    tags: [],
-    description: '',
-  }
-}
+import { EmptyEventsSection } from './EmptyEventsSection'
 
 export const FeaturedCarousel = () => {
   const { activeAddress } = useWallet()
@@ -71,12 +39,8 @@ export const FeaturedCarousel = () => {
     return () => { cancelled = true }
   }, [activeAddress])
 
-  const mockFeatured = events.filter((e) => e.isFeatured)
   const apiNotPurchased = apiEvents.filter((e) => !myTicketEventIds.has(e.id))
-  const carouselEvents: MockEvent[] = [
-    ...apiNotPurchased.map(apiEventToMock),
-    ...mockFeatured,
-  ]
+  const carouselEvents: MockEvent[] = apiNotPurchased.map(apiEventToMock)
 
   // When API events (not purchased) first appear, scroll to start so first card (API) is visible
   const prevApiNotPurchasedLen = useRef(0)
@@ -115,7 +79,20 @@ export const FeaturedCarousel = () => {
     )
   }
 
-  if (carouselEvents.length === 0) return null
+  if (carouselEvents.length === 0) {
+    return (
+      <section className="w-full">
+        <SectionLabel label="In the Spotlight" />
+        <div className="mt-3 px-4">
+          <EmptyEventsSection
+            variant="compact"
+            title="No events in the spotlight yet"
+            message="Events from organisers will appear here. Check back soon."
+          />
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="w-full">
