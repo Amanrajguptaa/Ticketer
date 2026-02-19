@@ -6,8 +6,9 @@ import { AlgorandClient } from '@algorandfoundation/algokit-utils'
 import { AlgoAmount } from '@algorandfoundation/algokit-utils/types/amount'
 import { useAuth } from '../context/AuthContext'
 import { ellipseAddress } from '../utils/ellipseAddress'
+import { WalletBalance } from '../components/WalletBalance'
 import { createEvent, listEvents, type Event } from '../api/events'
-import { TicketerContractsFactory } from '../contracts/TicketerContracts'
+import { TicketerContractsClient, TicketerContractsFactory } from '../contracts/TicketerContracts'
 import { getAlgodConfigFromViteEnvironment, getIndexerConfigFromViteEnvironment } from '../utils/network/getAlgoClientConfigs'
 
 type TabId = 'home' | 'events'
@@ -141,6 +142,12 @@ export default function OrganizerDashboard() {
   const [formError, setFormError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [filterDate, setFilterDate] = useState('') // YYYY-MM-DD or '' for all
+  const [withdrawingAppId, setWithdrawingAppId] = useState<string | null>(null)
+  const [withdrawError, setWithdrawError] = useState<string | null>(null)
+  const [withdrawDialogEvent, setWithdrawDialogEvent] = useState<Event | null>(null)
+  const [withdrawableMicroAlgos, setWithdrawableMicroAlgos] = useState<number | null>(null)
+  const [loadingWithdrawable, setLoadingWithdrawable] = useState(false)
+  const [withdrawAmountAlgo, setWithdrawAmountAlgo] = useState('')
   const [form, setForm] = useState({
     name: '',
     date: '',
@@ -186,6 +193,37 @@ export default function OrganizerDashboard() {
       cancelled = true
     }
   }, [activeAddress, role])
+
+  useEffect(() => {
+    if (!withdrawDialogEvent?.appAddress) {
+      setWithdrawableMicroAlgos(null)
+      return
+    }
+    let cancelled = false
+    setLoadingWithdrawable(true)
+    setWithdrawableMicroAlgos(null)
+    const algodConfig = getAlgodConfigFromViteEnvironment()
+    const indexerConfig = getIndexerConfigFromViteEnvironment()
+    const algorand = AlgorandClient.fromConfig({ algodConfig, indexerConfig })
+    algorand.account
+      .getInformation(withdrawDialogEvent.appAddress)
+      .then((info) => {
+        if (cancelled) return
+        const balance = Number(info.balance.microAlgos)
+        const minBal = Number(info.minBalance.microAlgos)
+        const withdrawable = Math.max(0, balance - minBal)
+        setWithdrawableMicroAlgos(withdrawable)
+      })
+      .catch(() => {
+        if (!cancelled) setWithdrawableMicroAlgos(0)
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingWithdrawable(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [withdrawDialogEvent?.id, withdrawDialogEvent?.appAddress])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -260,6 +298,79 @@ export default function OrganizerDashboard() {
     } finally {
       setFormLoading(false)
     }
+  }
+
+  const handleWithdrawSubmit = async () => {
+    const ev = withdrawDialogEvent
+    if (!activeAddress || !ev?.appId || !transactionSigner || withdrawableMicroAlgos == null) return
+    const amountAlgo = parseFloat(withdrawAmountAlgo.replace(/,/g, ''))
+    if (!Number.isFinite(amountAlgo) || amountAlgo <= 0) {
+      setWithdrawError('Enter a valid amount')
+      return
+    }
+    const amountMicroAlgos = Math.round(amountAlgo * 1_000_000)
+    if (amountMicroAlgos > withdrawableMicroAlgos) {
+      setWithdrawError('Amount exceeds available balance')
+      return
+    }
+    setWithdrawError(null)
+    setWithdrawingAppId(ev.appId)
+    try {
+      const algodConfig = getAlgodConfigFromViteEnvironment()
+      const indexerConfig = getIndexerConfigFromViteEnvironment()
+      const algorand = AlgorandClient.fromConfig({ algodConfig, indexerConfig })
+      algorand.setDefaultSigner(transactionSigner)
+      algorand.account.setSigner(activeAddress, transactionSigner)
+      const appClient = new TicketerContractsClient({
+        appId: BigInt(ev.appId),
+        defaultSender: activeAddress,
+        algorand,
+      })
+      try {
+        await appClient.send.withdrawAmount({
+          args: { amount: BigInt(amountMicroAlgos) },
+          sender: activeAddress,
+          signer: transactionSigner,
+        })
+      } catch (firstErr) {
+        const msg = firstErr instanceof Error ? firstErr.message : String(firstErr)
+        const isLegacyContract = /logic eval error|err opcode executed/i.test(msg)
+        if (isLegacyContract) {
+          await appClient.send.withdraw({
+            args: {},
+            sender: activeAddress,
+            signer: transactionSigner,
+          })
+        } else {
+          throw firstErr
+        }
+      }
+      const list = await listEvents(activeAddress)
+      setEvents(list)
+      setWithdrawDialogEvent(null)
+      setWithdrawAmountAlgo('')
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : 'Withdraw failed'
+      const isLowBalance = /balance \d+ below min \d+/i.test(raw)
+      const appAddr = withdrawDialogEvent?.appAddress ?? ''
+      const isContractLow = appAddr && raw.includes(appAddr)
+      setWithdrawError(
+        isLowBalance
+          ? isContractLow
+            ? 'The event contract account is below its minimum balance. Fund the contract address with a small amount of ALGO so it can send payments.'
+            : 'Your connected wallet (the one you use to sign) needs ALGO to pay the transaction fee — add at least 0.1–0.2 ALGO to that wallet in Pera, not to the event contract.'
+          : raw,
+      )
+    } finally {
+      setWithdrawingAppId(null)
+    }
+  }
+
+  const closeWithdrawDialog = () => {
+    if (withdrawingAppId) return
+    setWithdrawDialogEvent(null)
+    setWithdrawAmountAlgo('')
+    setWithdrawError(null)
   }
 
   const stats = useMemo(() => {
@@ -379,7 +490,7 @@ export default function OrganizerDashboard() {
         <header className="relative z-10 flex-shrink-0 flex items-center justify-between gap-4 px-4 py-3 border-b border-tc-border bg-tc-surface/80 backdrop-blur-sm">
           <span className="font-body text-sm text-tc-muted">{tab === 'home' ? 'Home' : 'Events'}</span>
           <div className="flex items-center gap-3">
-            <span className="font-mono text-sm text-tc-muted hidden sm:inline">{ellipseAddress(activeAddress)}</span>
+            <WalletBalance address={activeAddress ?? undefined} variant="dark" />
             <button
               type="button"
               className="p-2.5 rounded-lg border border-tc-border text-tc-muted hover:bg-tc-dim hover:text-tc-white hover:border-tc-lime/30 transition-colors"
@@ -502,6 +613,7 @@ export default function OrganizerDashboard() {
                             <th className="font-body text-tc-muted uppercase tracking-wider text-xs px-4 py-3 w-[12%] text-right">Sold</th>
                             <th className="font-body text-tc-muted uppercase tracking-wider text-xs px-4 py-3 w-[12%] text-right">Supply</th>
                             <th className="font-body text-tc-muted uppercase tracking-wider text-xs px-4 py-3 w-[14%]">Price</th>
+                            <th className="font-body text-tc-muted uppercase tracking-wider text-xs px-4 py-3 w-[14%] text-right">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -513,6 +625,7 @@ export default function OrganizerDashboard() {
                               <td className="px-4 py-3 text-right"><Shimmer className="h-4 w-8 rounded ml-auto" /></td>
                               <td className="px-4 py-3 text-right"><Shimmer className="h-4 w-8 rounded ml-auto" /></td>
                               <td className="px-4 py-3"><Shimmer className="h-4 w-14 rounded" /></td>
+                              <td className="px-4 py-3 text-right"><Shimmer className="h-4 w-20 rounded ml-auto" /></td>
                             </tr>
                           ))}
                         </tbody>
@@ -579,6 +692,9 @@ export default function OrganizerDashboard() {
                       )}
                     </div>
                   </div>
+                  {withdrawError && (
+                    <p className="mb-4 font-body text-sm text-tc-coral">{withdrawError}</p>
+                  )}
                   <div className="rounded-xl border border-tc-border bg-tc-surface/80 backdrop-blur-sm overflow-hidden">
                     <div className="overflow-x-auto">
                       <table className={`w-full text-left ${filteredEvents.length <= 5 ? 'table-fixed' : ''}`}>
@@ -613,6 +729,11 @@ export default function OrganizerDashboard() {
                               className={`font-body text-tc-muted uppercase tracking-wider ${filteredEvents.length <= 5 ? 'text-sm px-5 py-4' : 'text-xs px-4 py-3'}`}
                             >
                               Price
+                            </th>
+                            <th
+                              className={`font-body text-tc-muted uppercase tracking-wider text-right ${filteredEvents.length <= 5 ? 'text-sm px-5 py-4' : 'text-xs px-4 py-3'}`}
+                            >
+                              Actions
                             </th>
                           </tr>
                         </thead>
@@ -654,6 +775,25 @@ export default function OrganizerDashboard() {
                                 className={`font-body text-tc-muted ${filteredEvents.length <= 5 ? 'text-base px-5 py-4' : 'text-sm px-4 py-3'}`}
                               >
                                 {ev.priceAlgo} ALGO
+                              </td>
+                              <td
+                                className={`text-right ${filteredEvents.length <= 5 ? 'px-5 py-4' : 'px-4 py-3'}`}
+                              >
+                                {ev.appId ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                    setWithdrawError(null)
+                                    setWithdrawDialogEvent(ev)
+                                  }}
+                                    disabled={withdrawingAppId !== null}
+                                    className="font-body text-sm px-3 py-1.5 rounded-lg border border-tc-lime/40 text-tc-lime hover:bg-tc-lime/15 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                  >
+                                    Withdraw
+                                  </button>
+                                ) : (
+                                  <span className="font-body text-xs text-tc-muted">—</span>
+                                )}
                               </td>
                             </tr>
                           ))}
@@ -791,6 +931,92 @@ export default function OrganizerDashboard() {
                 </button>
               </div>
             </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Withdraw dialog */}
+      {withdrawDialogEvent && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          onClick={closeWithdrawDialog}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.2 }}
+            className="w-full max-w-md rounded-xl border border-tc-border bg-tc-surface shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 border-b border-tc-border">
+              <h2 className="font-display font-bold text-lg bg-gradient-to-r from-tc-lime via-tc-white to-tc-lime bg-clip-text text-transparent">
+                Withdraw funds
+              </h2>
+              <p className="font-body text-sm text-tc-muted mt-0.5">{withdrawDialogEvent.name}</p>
+            </div>
+            <div className="p-6 space-y-4">
+              {withdrawError && <p className="font-body text-sm text-tc-coral">{withdrawError}</p>}
+              <div className="rounded-lg border border-tc-border bg-tc-raised/50 p-4">
+                <p className="font-body text-xs text-tc-muted uppercase tracking-wider mb-1">Available to withdraw</p>
+                {loadingWithdrawable ? (
+                  <p className="font-display font-bold text-tc-lime">Loading…</p>
+                ) : withdrawableMicroAlgos != null ? (
+                  <p className="font-display font-bold text-tc-lime">
+                    {(withdrawableMicroAlgos / 1_000_000).toFixed(4)} ALGO
+                  </p>
+                ) : (
+                  <p className="font-body text-sm text-tc-muted">—</p>
+                )}
+              </div>
+              <div>
+                <label className="block font-body text-sm text-tc-muted mb-1">Amount (ALGO)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={withdrawAmountAlgo}
+                    onChange={(e) => setWithdrawAmountAlgo(e.target.value)}
+                    placeholder="0"
+                    className="flex-1 px-3 py-2 rounded-lg font-body text-sm bg-tc-raised border border-tc-border text-tc-white placeholder-tc-muted focus:outline-none focus:border-tc-lime/50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      withdrawableMicroAlgos != null &&
+                      setWithdrawAmountAlgo((withdrawableMicroAlgos / 1_000_000).toFixed(4))
+                    }
+                    disabled={loadingWithdrawable || withdrawableMicroAlgos == null || (withdrawableMicroAlgos ?? 0) <= 0}
+                    className="px-3 py-2 rounded-lg font-body text-sm font-medium border border-tc-lime/40 text-tc-lime hover:bg-tc-lime/15 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Max
+                  </button>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeWithdrawDialog}
+                  disabled={!!withdrawingAppId}
+                  className="flex-1 px-4 py-2.5 rounded-lg font-body font-medium text-tc-white border border-tc-border hover:bg-tc-dim disabled:opacity-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleWithdrawSubmit}
+                  disabled={
+                    !!withdrawingAppId ||
+                    loadingWithdrawable ||
+                    withdrawableMicroAlgos == null ||
+                    (withdrawableMicroAlgos ?? 0) <= 0 ||
+                    !withdrawAmountAlgo.trim()
+                  }
+                  className="flex-1 px-4 py-2.5 rounded-lg font-body font-semibold text-tc-bg bg-tc-lime hover:bg-tc-lime/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {withdrawingAppId ? 'Withdrawing…' : 'Withdraw'}
+                </button>
+              </div>
+            </div>
           </motion.div>
         </div>
       )}

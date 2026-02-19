@@ -211,6 +211,8 @@ export class TicketerContracts extends Contract {
     this.listedPrice(Txn.sender).value = 0
   }
 
+  /** Withdraw full balance (legacy; use withdrawAmount for new deployments). */
+  @abimethod({ allowActions: ['NoOp'] })
   withdraw(): void {
     assert(Txn.sender === this.organizer.value, 'Only organizer can withdraw')
 
@@ -224,6 +226,25 @@ export class TicketerContracts extends Contract {
         fee: Global.minTxnFee,
         receiver: this.organizer.value,
         amount: balance,
+      })
+      .submit()
+  }
+
+  @abimethod({ allowActions: ['NoOp'] })
+  withdrawAmount(amount: uint64): void {
+    assert(Txn.sender === this.organizer.value, 'Only organizer can withdraw')
+    assert(amount > 0, 'Amount must be positive')
+
+    const available: uint64 =
+      Global.currentApplicationAddress.balance -
+      Global.currentApplicationAddress.minBalance
+    assert(amount <= available, 'Amount exceeds withdrawable balance')
+
+    itxn
+      .payment({
+        fee: Global.minTxnFee,
+        receiver: this.organizer.value,
+        amount,
       })
       .submit()
   }
