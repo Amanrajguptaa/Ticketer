@@ -1,6 +1,12 @@
 import { SupportedWallet, WalletId, WalletManager, WalletProvider } from '@txnlab/use-wallet-react'
 import { SnackbarProvider } from 'notistack'
-import Home from './Home'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext'
+import ProfileLoader from './components/ProfileLoader'
+import Landing from './pages/Landing'
+import OrganizerDashboard from './pages/OrganizerDashboard'
+import StudentTickets from './pages/StudentTickets'
+import GateVerifier from './pages/GateVerifier'
 import { getAlgodConfigFromViteEnvironment, getKmdConfigFromViteEnvironment } from './utils/network/getAlgoClientConfigs'
 
 let supportedWallets: SupportedWallet[]
@@ -42,14 +48,26 @@ export default function App() {
       },
     },
     options: {
-      resetNetwork: true,
+      // Keep false so wallet connection persists across refresh; true can clear session on load
+      resetNetwork: false,
     },
   })
 
   return (
     <SnackbarProvider maxSnack={3}>
       <WalletProvider manager={walletManager}>
-        <Home />
+        <AuthProvider>
+          <BrowserRouter>
+            <ProfileLoader />
+            <Routes>
+              <Route path="/" element={<Landing />} />
+              <Route path="/organizer" element={<OrganizerDashboard />} />
+              <Route path="/tickets" element={<StudentTickets />} />
+              <Route path="/verify" element={<GateVerifier />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
       </WalletProvider>
     </SnackbarProvider>
   )

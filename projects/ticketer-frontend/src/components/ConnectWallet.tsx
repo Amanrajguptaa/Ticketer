@@ -13,8 +13,9 @@ const ConnectWallet = ({ openModal, closeModal }: ConnectWalletInterface) => {
 
   return (
     <dialog id="connect_wallet_modal" className={`modal ${openModal ? 'modal-open' : ''}`}>
-      <form method="dialog" className="modal-box">
-        <h3 className="font-bold text-2xl">Select wallet provider</h3>
+      <form method="dialog" className="modal-box bg-[#1e293b] text-white border border-white/10">
+        <h3 className="font-bold text-2xl">Connect wallet</h3>
+        <p className="text-gray-400 text-sm mt-1">Use your Algorand wallet to sign in (Pera, Defly, Exodus)</p>
 
         <div className="grid m-2 pt-5">
           {activeAddress && (
@@ -28,7 +29,7 @@ const ConnectWallet = ({ openModal, closeModal }: ConnectWalletInterface) => {
             wallets?.map((wallet) => (
               <button
                 data-test-id={`${wallet.id}-connect`}
-                className="btn border-teal-800 border-1  m-2"
+                className="btn m-2 border-2 border-[#1A56DB] bg-white/5 text-white hover:bg-white/10"
                 key={`provider-${wallet.id}`}
                 onClick={() => {
                   return wallet.connect()
@@ -46,19 +47,17 @@ const ConnectWallet = ({ openModal, closeModal }: ConnectWalletInterface) => {
             ))}
         </div>
 
-        <div className="modal-action ">
+        <div className="modal-action">
           <button
             data-test-id="close-wallet-modal"
-            className="btn"
-            onClick={() => {
-              closeModal()
-            }}
+            className="btn bg-white/10 text-white border border-white/20"
+            onClick={() => closeModal()}
           >
             Close
           </button>
           {activeAddress && (
             <button
-              className="btn btn-warning"
+              className="btn border-2 border-amber-500 text-amber-400 hover:bg-amber-500/20"
               data-test-id="logout"
               onClick={async () => {
                 if (wallets) {
@@ -66,16 +65,13 @@ const ConnectWallet = ({ openModal, closeModal }: ConnectWalletInterface) => {
                   if (activeWallet) {
                     await activeWallet.disconnect()
                   } else {
-                    // Required for logout/cleanup of inactive providers
-                    // For instance, when you login to localnet wallet and switch network
-                    // to testnet/mainnet or vice verse.
                     localStorage.removeItem('@txnlab/use-wallet:v3')
                     window.location.reload()
                   }
                 }
               }}
             >
-              Logout
+              Disconnect
             </button>
           )}
         </div>

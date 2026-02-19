@@ -4,11 +4,14 @@ import { TicketerContracts } from './contract.algo'
 
 describe('TicketerContracts contract', () => {
   const ctx = new TestExecutionContext()
-  it('Logs the returned value when sayHello is called', () => {
+
+  it('creates an event and initialises global state', () => {
     const contract = ctx.contract.create(TicketerContracts)
 
-    const result = contract.hello('Sally')
+    contract.createEvent('Test Event', '2026-03-01', 'Main Hall', 100, 1_000_000)
 
-    expect(result).toBe('Hello, Sally')
+    expect(contract.eventName.value).toBe('Test Event')
+    expect(contract.ticketSupply.value).toBe(100)
+    expect(contract.ticketsSold.value).toBe(0)
   })
 })

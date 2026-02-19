@@ -1,7 +1,7 @@
 import { AlgorandClient } from '@algorandfoundation/algokit-utils'
+import { AlgoAmount } from '@algorandfoundation/algokit-utils/types/amount'
 import { TicketerContractsFactory } from '../artifacts/ticketer_contracts/TicketerContractsClient'
 
-// Below is a showcase of various deployment options you can use in TypeScript Client
 export async function deploy() {
   console.log('=== Deploying TicketerContracts ===')
 
@@ -12,22 +12,26 @@ export async function deploy() {
     defaultSender: deployer.addr,
   })
 
-  const { appClient, result } = await factory.deploy({ onUpdate: 'append', onSchemaBreak: 'append' })
-
-  // If app was just created fund the app account
-  if (['create', 'replace'].includes(result.operationPerformed)) {
-    await algorand.send.payment({
-      amount: (1).algo(),
-      sender: deployer.addr,
-      receiver: appClient.appAddress,
-    })
-  }
-
-  const method = 'hello'  
-  const response = await appClient.send.hello({
-    args: { name: 'world' },
+  // Step 1: Create app with event info
+  const { appClient } = await factory.send.create.createEvent({
+    args: {
+      name: 'Demo Event',
+      date: '2026-03-01T18:00:00Z',
+      venue: 'Demo Venue',
+      supply: 100,
+      priceInMicroAlgos: 1_000_000,
+    },
   })
-  console.log(
-    `Called ${method} on ${appClient.appClient.appName} (${appClient.appClient.appId}) with name = world, received: ${response.return}`,
-  )
+
+  console.log(`App deployed at ID: ${appClient.appClient.appId}`)
+  console.log(`App address: ${appClient.appAddress}`)
+
+  // Step 2: Fund the app (enough for MBR when minting NFTs on purchase)
+  await algorand.send.payment({
+    amount: AlgoAmount.MicroAlgos(400_000),
+    sender: deployer.addr,
+    receiver: appClient.appAddress,
+  })
+
+  console.log('Each ticket is minted as a unique NFT (ARC-3) when a student buys.')
 }
