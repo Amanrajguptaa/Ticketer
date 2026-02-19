@@ -138,6 +138,12 @@ export default function OrganizerDashboard() {
           </button>
           <span className="font-bold" style={{ color: '#1A56DB' }}>TicketChain</span>
           <span className="text-gray-500">Organizer Dashboard</span>
+          <button
+            onClick={() => navigate('/verify')}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium border border-white/20 hover:bg-white/10"
+          >
+            Verify tickets
+          </button>
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-400">
           <span>{ellipseAddress(activeAddress)}</span>

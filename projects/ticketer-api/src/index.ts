@@ -286,6 +286,26 @@ app.post('/api/events/:id/buy', async (req, res) => {
   }
 })
 
+// GET /api/tickets/:id — fetch one ticket (for gate: get event.appId + buyerAddress before on-chain verify)
+app.get('/api/tickets/:id', async (req, res) => {
+  try {
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: req.params.id },
+      include: { event: true },
+    })
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found' })
+    }
+    return res.json(serializeTicket(ticket as unknown as Record<string, unknown>))
+  } catch (e) {
+    if (isDbConnectionError(e)) {
+      return res.status(503).json({ error: 'Database unavailable' })
+    }
+    console.error(e)
+    return res.status(500).json({ error: 'Database error' })
+  }
+})
+
 // GET /api/tickets?wallet=0x... — list tickets for a wallet
 app.get('/api/tickets', async (req, res) => {
   const wallet = normalizeWallet(req.query.wallet as string)
