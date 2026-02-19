@@ -8,7 +8,8 @@ import { AlgoAmount } from '@algorandfoundation/algokit-utils/types/amount'
 import { listEvents, listMyTickets, buyTicket, type Event as ApiEvent } from '../../api/events'
 import { TicketerContractsClient } from '../../contracts/TicketerContracts'
 import { getAlgodConfigFromViteEnvironment, getIndexerConfigFromViteEnvironment } from '../../utils/network/getAlgoClientConfigs'
-import { HeroBanner } from './HeroBanner'
+import { getFriendlyBuyError } from '../../utils/buyErrorMessages'
+import { EmptyEventsSection } from './EmptyEventsSection'
 
 const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&q=80'
 
@@ -22,7 +23,7 @@ function formatDate(dateStr: string) {
   })
 }
 
-/** Featured event from API with Buy now; falls back to mock HeroBanner when no API events. */
+/** Featured event from API with Buy now; shows empty state when no API events. */
 export function FeaturedEventFromApi() {
   const navigate = useNavigate()
   const { activeAddress, transactionSigner } = useWallet()
@@ -119,7 +120,8 @@ export function FeaturedEventFromApi() {
       await fetchData()
       navigate('/my-tickets')
     } catch (err) {
-      setBuyError(err instanceof Error ? err.message : 'Purchase failed')
+      const { message } = getFriendlyBuyError(err)
+      setBuyError(message)
       setBuyStatus(null)
     } finally {
       setBuyingId(null)
@@ -140,7 +142,16 @@ export function FeaturedEventFromApi() {
     apiEvents.length > 0
       ? apiEvents.find((e) => e.appId && e.appAddress) ?? apiEvents[0]
       : null
-  if (!featured) return <HeroBanner />
+  if (!featured) {
+    return (
+      <div className="w-full px-4">
+        <EmptyEventsSection
+          title="No featured event yet"
+          message="When organisers create events, one will show here. Check back soon."
+        />
+      </div>
+    )
+  }
 
   const cover = featured.coverImageUrl || PLACEHOLDER_IMAGE
   const sold = featured.ticketsSold ?? 0

@@ -1,46 +1,44 @@
-import { useMemo } from 'react'
-import { useOnboardingStore } from '../store/onboardingStore'
-import { events } from '../data/mockData'
+import { useEffect, useState, useMemo } from 'react'
+import { listEvents } from '../api/events'
+import { apiEventToMock } from '../utils/eventAdapters'
 import type { Event } from '../data/mockData'
 
 const TODAY = new Date()
 TODAY.setHours(0, 0, 0, 0)
 
 function isWithinNextDays(isoDate: string, days: number): boolean {
-  const d = new Date(isoDate + 'T00:00:00')
+  const d = new Date(isoDate)
   d.setHours(0, 0, 0, 0)
   const diff = (d.getTime() - TODAY.getTime()) / (1000 * 60 * 60 * 24)
   return diff >= 0 && diff <= days
 }
 
 export function useHomeFeed(): {
+  loading: boolean
   forYou: Event[]
   thisWeek: Event[]
   free: Event[]
+  apiEvents: import('../api/events').Event[]
 } {
-  const interests = useOnboardingStore((s) => s.formData.interests)
+  const [apiEvents, setApiEvents] = useState<import('../api/events').Event[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    listEvents()
+      .then((evts) => { if (!cancelled) setApiEvents(evts) })
+      .catch(() => { if (!cancelled) setApiEvents([]) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [])
 
   return useMemo(() => {
-    const interestSet = new Set(interests)
-
-    // For You: events matching interests, then pad with trending (by sell-through)
-    const forYou = [...events]
-      .filter((e) => !e.isSoldOut && e.tags.some((t) => interestSet.has(t)))
-      .sort((a, b) => b.soldTickets / b.totalTickets - a.soldTickets / a.totalTickets)
-    const forYouIds = new Set(forYou.map((e) => e.id))
-    const trending = [...events]
-      .filter((e) => !e.isSoldOut && !forYouIds.has(e.id))
-      .sort((a, b) => b.soldTickets / b.totalTickets - a.soldTickets / a.totalTickets)
-    const forYouPadded = forYou.length >= 3 ? forYou : [...forYou, ...trending.slice(0, 3 - forYou.length)]
-
-    // This week: next 7 days, sorted by date
-    const thisWeek = [...events]
-      .filter((e) => isWithinNextDays(e.date, 7))
+    const mapped = apiEvents.map(apiEventToMock)
+    const forYou = [...mapped].filter((e) => !e.isSoldOut).slice(0, 8)
+    const thisWeek = [...mapped]
+      .filter((e) => isWithinNextDays(e.date, 7) && !e.isSoldOut)
       .sort((a, b) => a.date.localeCompare(b.date))
-
-    // Free: isFree events
-    const free = [...events].filter((e) => e.isFree && !e.isSoldOut).sort((a, b) => a.date.localeCompare(b.date))
-
-    return { forYou: forYouPadded, thisWeek, free }
-  }, [interests])
+    const free = [...mapped].filter((e) => e.isFree && !e.isSoldOut).sort((a, b) => a.date.localeCompare(b.date))
+    return { loading, forYou, thisWeek, free, apiEvents }
+  }, [apiEvents, loading])
 }

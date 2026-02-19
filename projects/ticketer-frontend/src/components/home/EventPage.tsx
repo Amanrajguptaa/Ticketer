@@ -10,35 +10,12 @@ import type { Event as MockEvent } from '../../data/mockData'
 import { getEvent, buyTicket, type Event as ApiEvent } from '../../api/events'
 import { TicketerContractsClient } from '../../contracts/TicketerContracts'
 import { getAlgodConfigFromViteEnvironment, getIndexerConfigFromViteEnvironment } from '../../utils/network/getAlgoClientConfigs'
+import { getFriendlyBuyError } from '../../utils/buyErrorMessages'
 
 const PLACEHOLDER_IMAGE = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&q=80'
 
 const getOrganiser = (id: string) => organisers.find((o) => o.id === id)
 
-/** Map transaction/API errors to user-friendly messages for Book Now. */
-function getFriendlyBuyError(err: unknown): { message: string; alreadyOwned?: boolean } {
-  const raw = err instanceof Error ? err.message : String(err)
-  const lower = raw.toLowerCase()
-  if (lower.includes('already opted in') || lower.includes('already opted-in')) {
-    return {
-      message: 'You may already have a ticket for this event. Check My Tickets.',
-      alreadyOwned: true,
-    }
-  }
-  if (lower.includes('insufficient') || lower.includes('underflow')) {
-    return { message: 'Insufficient ALGO balance. Add funds to your wallet and try again.' }
-  }
-  if (lower.includes('rejected') || lower.includes('user denied')) {
-    return { message: 'Transaction was cancelled. Try again when you’re ready.' }
-  }
-  if (lower.includes('network') || lower.includes('fetch') || lower.includes('failed to fetch')) {
-    return { message: 'Network error. Check your connection and try again.' }
-  }
-  if (lower.includes('not found') || lower.includes('404')) {
-    return { message: 'Event or ticket service unavailable. Please try again later.' }
-  }
-  return { message: 'Purchase failed. Please try again or check My Tickets.' }
-}
 
 /** Format "HH:mm" as 12h time */
 function formatTime(time24: string) {

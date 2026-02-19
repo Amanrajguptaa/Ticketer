@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { useHomeFeed } from '../../hooks/useHomeFeed'
+import type { Event } from '../../data/mockData'
 import { SectionLabel } from './SectionLabel'
 import { EventCard } from './EventCard'
-import type { Event } from '../../data/mockData'
 
 const MAX_DAYS = 3
 
@@ -27,8 +27,26 @@ const dayLabel = (iso: string) => {
 }
 
 export const ThisWeekSection = () => {
-  const { thisWeek } = useHomeFeed()
+  const { loading, thisWeek } = useHomeFeed()
   const dayGroups = useMemo(() => groupByDay(thisWeek).slice(0, MAX_DAYS), [thisWeek])
+
+  if (loading) {
+    return (
+      <section className="w-full">
+        <SectionLabel label="This Week" />
+        <div className="mt-3 px-4 flex flex-col gap-5">
+          {[1, 2].map((i) => (
+            <div key={i}>
+              <div className="h-3 w-20 rounded bg-tc-dim animate-pulse mb-2" />
+              <div className="flex flex-col gap-2">
+                <div className="h-[72px] rounded-xl bg-tc-surface border border-tc-border animate-pulse" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    )
+  }
 
   if (dayGroups.length === 0) return null
 
@@ -51,6 +69,7 @@ export const ThisWeekSection = () => {
       </div>
       <div className="flex justify-center mt-4">
         <motion.button
+          type="button"
           whileHover={{ x: 2 }}
           whileTap={{ scale: 0.97 }}
           className="font-body font-medium text-[12px] text-tc-lime hover:text-tc-lime/80 transition-colors"
