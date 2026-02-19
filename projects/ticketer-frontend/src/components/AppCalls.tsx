@@ -54,17 +54,7 @@ const AppCalls = ({ openModal, setModalState }: AppCallsInterface) => {
 
     const { appClient } = deployResult
 
-    const response = await appClient.send.hello({ args: { name: contractInput } }).catch((e: Error) => {
-      enqueueSnackbar(`Error calling the contract: ${e.message}`, { variant: 'error' })
-      setLoading(false)
-      return undefined
-    })
-
-    if (!response) {
-      return
-    }
-
-    enqueueSnackbar(`Response from the contract: ${response.return}`, { variant: 'success' })
+    enqueueSnackbar(`Contract deployed: ${appClient.appClient.appId}`, { variant: 'success' })
     setLoading(false)
   }
 

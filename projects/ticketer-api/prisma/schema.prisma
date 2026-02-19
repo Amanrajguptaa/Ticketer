@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model UserProfile {
+  id             String   @id @default(cuid())
+  walletAddress  String   @unique
+  role           Role
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("user_profiles")
+}
+
+model Event {
+  id               String   @id @default(cuid())
+  organizerAddress String
+  name             String
+  date             DateTime
+  venue            String
+  ticketSupply     Int
+  priceAlgo        String
+  coverImageUrl    String?
+  appId            BigInt?
+  assetId          BigInt?
+  appAddress       String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  tickets          Ticket[]
+
+  @@map("events")
+}
+
+model Ticket {
+  id            String   @id @default(cuid())
+  eventId       String
+  buyerAddress  String
+  purchasedAt   DateTime @default(now())
+  used          Boolean  @default(false)
+  event         Event    @relation(fields: [eventId], references: [id])
+
+  @@index([buyerAddress])
+  @@index([eventId])
+  @@map("tickets")
+}
+
+enum Role {
+  organizer
+  student
+  gate
+}
