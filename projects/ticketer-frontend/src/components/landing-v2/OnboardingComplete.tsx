@@ -3,21 +3,126 @@ import { motion } from 'framer-motion'
 import { useWallet } from '@txnlab/use-wallet-react'
 import { useOnboardingStore } from '../../store/onboardingStore'
 import ConnectWallet from '../ConnectWallet'
+import { useAuth } from '../../context/AuthContext'
+import { loginUser, registerUser } from '../../api/auth'
+import { getProfile } from '../../api/profile'
+import { useSnackbar } from 'notistack'
 
 export const OnboardingComplete = ({ onFinish }: { onFinish: () => void }) => {
   const name = useOnboardingStore((s) => s.name)
   const role = useOnboardingStore((s) => s.role)
+  const email = useOnboardingStore((s) => s.email)
+  const interests = useOnboardingStore((s) => s.interests)
+  const authMode = useOnboardingStore((s) => s.authMode)
+  const password = useOnboardingStore((s) => s.password)
   const { activeAddress } = useWallet()
+  const { setRole } = useAuth()
+  const { enqueueSnackbar } = useSnackbar()
   const [openWalletModal, setOpenWalletModal] = useState(false)
+  const [status, setStatus] = useState<'idle' | 'submitting' | 'done' | 'error'>('idle')
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const isGuard = role === 'guard'
   const isStudent = role === 'student'
 
   useEffect(() => {
+    if (!activeAddress) {
+      setStatus('idle')
+      setErrorMsg(null)
+    }
+  }, [activeAddress])
+
+  const mapRole = (r: typeof role) => {
+    if (r === 'organiser') return 'organizer' as const
+    if (r === 'guard') return 'gate' as const
+    return 'student' as const
+  }
+
+  const submitAuth = async (walletAddress: string) => {
+    if (!role) return
+    if (!email || !password) {
+      setStatus('error')
+      setErrorMsg('Missing email or password. Please go back and try again.')
+      enqueueSnackbar('Missing email or password. Go back and try again.', { variant: 'error' })
+      return
+    }
+
+    setStatus('submitting')
+    setErrorMsg(null)
+
+    try {
+      const existing = await getProfile(walletAddress)
+      const apiRole = mapRole(role)
+
+      if (authMode === 'signup') {
+        // Signup flow: never auto-login. If an account already exists for this wallet, show an error.
+        if (existing) {
+          setStatus('error')
+          const msg = 'Account already exists for this wallet. Please log in instead.'
+          setErrorMsg(msg)
+          enqueueSnackbar(msg, { variant: 'warning' })
+          return
+        }
+
+        const resp = await registerUser({
+          name,
+          email,
+          password,
+          role: apiRole,
+          walletAddress,
+          hobbies: apiRole === 'student' ? interests : [],
+        })
+
+        try {
+          localStorage.setItem('ticketer.token', resp.token)
+          localStorage.setItem('ticketer.walletAddress', resp.profile.walletAddress)
+        } catch {
+          // ignore
+        }
+
+        setRole(resp.profile.role)
+        setStatus('done')
+        enqueueSnackbar('Account created successfully.', { variant: 'success' })
+        setTimeout(() => onFinish(), 800)
+        return
+      }
+
+      // Login flow
+      if (!existing) {
+        setStatus('error')
+        const msg = 'Account not found for this wallet. Please sign up first.'
+        setErrorMsg(msg)
+        enqueueSnackbar(msg, { variant: 'error' })
+        return
+      }
+
+      const resp = await loginUser({ email, password, walletAddress })
+
+      try {
+        localStorage.setItem('ticketer.token', resp.token)
+        localStorage.setItem('ticketer.walletAddress', resp.profile.walletAddress)
+      } catch {
+        // ignore
+      }
+
+      setRole(resp.profile.role)
+      setStatus('done')
+      enqueueSnackbar('Signed in successfully.', { variant: 'success' })
+      setTimeout(() => onFinish(), 800)
+    } catch (e) {
+      console.error(e)
+      setStatus('error')
+      const msg = e instanceof Error ? e.message : 'Authentication failed'
+      setErrorMsg(msg)
+      enqueueSnackbar(msg, { variant: 'error' })
+    }
+  }
+
+  useEffect(() => {
     if (!activeAddress) return
-    const t = setTimeout(() => onFinish(), 800)
-    return () => clearTimeout(t)
-  }, [activeAddress, onFinish])
+    if (status !== 'idle') return
+    void submitAuth(String(activeAddress))
+  }, [activeAddress, status])
 
   const dots = useMemo(() => {
     return Array.from({ length: 16 }).map((_, i) => ({
@@ -192,11 +297,29 @@ export const OnboardingComplete = ({ onFinish }: { onFinish: () => void }) => {
           >
             <button
               type="button"
-              onClick={() => setOpenWalletModal(true)}
+              onClick={() => {
+                if (activeAddress && status === 'error') {
+                  void submitAuth(String(activeAddress))
+                  return
+                }
+                setOpenWalletModal(true)
+              }}
+              disabled={status === 'submitting'}
               className="px-8 py-3.5 rounded-lg font-semibold text-tc-bg bg-tc-lime hover:bg-tc-lime/90 transition-colors border border-tc-lime/50 font-body"
             >
-              Connect Wallet
+              {status === 'submitting'
+                ? authMode === 'login'
+                  ? 'Signing in…'
+                  : 'Creating account…'
+                : status === 'error' && activeAddress
+                  ? 'Try again'
+                  : 'Connect Wallet'}
             </button>
+            {errorMsg && (
+              <p className="mt-3 text-center font-body text-[12px] text-tc-coral">
+                {errorMsg}
+              </p>
+            )}
           </motion.div>
         </div>
 
