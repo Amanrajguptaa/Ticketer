@@ -1,0 +1,38 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - '.vscode/**'
+      - '.idea/**'
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  ticketer-contracts-validate:
+    name: Run ticketer-contracts release
+    secrets: inherit
+    uses: ./.github/workflows/ticketer-contracts-ci.yaml
+
+  ticketer-contracts-release:
+    name: Run ticketer-contracts release
+    secrets: inherit
+    uses: ./.github/workflows/ticketer-contracts-cd.yaml
+    needs: ticketer-contracts-validate
+
+  ticketer-frontend-validate:
+    name: Run ticketer-frontend release
+    secrets: inherit
+    uses: ./.github/workflows/ticketer-frontend-ci.yaml
+
+  ticketer-frontend-release:
+    name: Run ticketer-frontend release
+    secrets: inherit
+    uses: ./.github/workflows/ticketer-frontend-cd.yaml
+    needs: ticketer-frontend-validate

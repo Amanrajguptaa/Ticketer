@@ -1,0 +1,14 @@
+name: Pull Request validation
+
+on: [pull_request]
+
+
+jobs:
+  ticketer-contracts-ci:
+    name: Run ticketer-contracts validation
+    uses: ./.github/workflows/ticketer-contracts-ci.yaml
+
+  ticketer-frontend-ci:
+    name: Run ticketer-frontend validation
+    uses: ./.github/workflows/ticketer-frontend-ci.yaml
+
