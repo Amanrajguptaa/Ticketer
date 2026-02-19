@@ -1,12 +1,17 @@
 import cors from 'cors'
 import express from 'express'
 import { prisma } from './db.js'
+import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
+import type { Secret, SignOptions } from 'jsonwebtoken'
 
 const app = express()
 const PORT = Number(process.env.PORT) || 3001
 
 app.use(cors({ origin: true }))
 app.use(express.json())
+
+type ApiRole = 'organizer' | 'student' | 'gate'
 
 function isDbConnectionError(e: unknown): boolean {
   if (e && typeof e === 'object' && 'message' in e) {
@@ -19,6 +24,25 @@ function isDbConnectionError(e: unknown): boolean {
 function normalizeWallet(address: string | undefined): string | null {
   if (!address || typeof address !== 'string') return null
   return address.trim().toLowerCase()
+}
+
+function normalizeEmail(email: string | undefined): string | null {
+  if (!email || typeof email !== 'string') return null
+  const e = email.trim().toLowerCase()
+  if (!e) return null
+  return e
+}
+
+function isValidRole(role: unknown): role is ApiRole {
+  return role === 'organizer' || role === 'student' || role === 'gate'
+}
+
+const JWT_SECRET: Secret = process.env.JWT_SECRET || 'dev-only-unsafe-secret'
+const JWT_EXPIRES_IN: SignOptions['expiresIn'] =
+  (process.env.JWT_EXPIRES_IN as SignOptions['expiresIn']) || '7d'
+
+function signAuthToken(payload: { userId: string; walletAddress: string; role: ApiRole }) {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN })
 }
 
 // BigInt fields can't be serialized to JSON directly
@@ -125,6 +149,185 @@ app.get('/api/profile', async (req, res) => {
   }
 })
 
+// POST /auth/register — create account: { name, email, password, role, walletAddress, hobbies? }
+app.post('/auth/register', async (req, res) => {
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : ''
+  const email = normalizeEmail(req.body?.email)
+  const password = typeof req.body?.password === 'string' ? req.body.password : ''
+  const roleRaw = req.body?.role
+  const walletAddress = normalizeWallet(req.body?.walletAddress ?? req.body?.wallet)
+  const hobbiesRaw = req.body?.hobbies ?? req.body?.interests
+
+  if (!name || name.length < 2) return res.status(400).json({ error: 'Name must be at least 2 characters' })
+  if (!email) return res.status(400).json({ error: 'Invalid email' })
+  if (!password || password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' })
+  if (!isValidRole(roleRaw)) return res.status(400).json({ error: 'Invalid role. Use organizer, student, or gate' })
+  if (!walletAddress) return res.status(400).json({ error: 'Missing walletAddress' })
+
+  const hobbies =
+    roleRaw === 'student'
+      ? Array.isArray(hobbiesRaw)
+        ? hobbiesRaw.filter((x: unknown) => typeof x === 'string').map((x: string) => x.trim()).filter(Boolean)
+        : []
+      : []
+
+  if (roleRaw === 'student' && hobbies.length < 1) {
+    return res.status(400).json({ error: 'Students must provide at least one hobby' })
+  }
+
+  try {
+    const existingByEmail = await prisma.userProfile.findUnique({ where: { email } })
+    if (existingByEmail) {
+      // Make signup largely idempotent to avoid hard failures in the UI.
+      const walletMatches = existingByEmail.walletAddress === walletAddress
+      const roleMatches = existingByEmail.role === roleRaw
+      const pwMatches = await bcrypt.compare(password, existingByEmail.password)
+      if (walletMatches && roleMatches && pwMatches) {
+        const token = signAuthToken({
+          userId: existingByEmail.id,
+          walletAddress: existingByEmail.walletAddress,
+          role: existingByEmail.role as ApiRole,
+        })
+        return res.json({
+          token,
+          profile: {
+            id: existingByEmail.id,
+            name: existingByEmail.name,
+            email: existingByEmail.email,
+            avatarUrl: existingByEmail.avatarUrl,
+            hobbies: existingByEmail.hobbies,
+            walletAddress: existingByEmail.walletAddress,
+            role: existingByEmail.role,
+          },
+        })
+      }
+      return res.status(409).json({ error: 'Account already exists for this email' })
+    }
+
+    const existingByWallet = await prisma.userProfile.findUnique({ where: { walletAddress } })
+    if (existingByWallet) {
+      const isLegacy =
+        existingByWallet.password === 'legacy' &&
+        typeof existingByWallet.email === 'string' &&
+        existingByWallet.email.endsWith('@wallet.local')
+      if (!isLegacy) {
+        return res.status(409).json({ error: 'Wallet is already linked to an account' })
+      }
+
+      const hashed = await bcrypt.hash(password, 10)
+      const upgraded = await prisma.userProfile.update({
+        where: { id: existingByWallet.id },
+        data: {
+          name,
+          email,
+          password: hashed,
+          hobbies,
+          role: roleRaw,
+        },
+      })
+
+      const token = signAuthToken({
+        userId: upgraded.id,
+        walletAddress: upgraded.walletAddress,
+        role: upgraded.role as ApiRole,
+      })
+
+      return res.status(201).json({
+        token,
+        profile: {
+          id: upgraded.id,
+          name: upgraded.name,
+          email: upgraded.email,
+          avatarUrl: upgraded.avatarUrl,
+          hobbies: upgraded.hobbies,
+          walletAddress: upgraded.walletAddress,
+          role: upgraded.role,
+        },
+      })
+    }
+
+    const hashed = await bcrypt.hash(password, 10)
+    const created = await prisma.userProfile.create({
+      data: {
+        name,
+        email,
+        password: hashed,
+        hobbies,
+        walletAddress,
+        role: roleRaw,
+      },
+    })
+
+    const token = signAuthToken({
+      userId: created.id,
+      walletAddress: created.walletAddress,
+      role: created.role as ApiRole,
+    })
+
+    return res.status(201).json({
+      token,
+      profile: {
+        id: created.id,
+        name: created.name,
+        email: created.email,
+        avatarUrl: created.avatarUrl,
+        hobbies: created.hobbies,
+        walletAddress: created.walletAddress,
+        role: created.role,
+      },
+    })
+  } catch (e) {
+    if (isDbConnectionError(e)) {
+      return res.status(503).json({ error: 'Database unavailable' })
+    }
+    console.error(e)
+    return res.status(500).json({ error: 'Server error' })
+  }
+})
+
+// POST /auth/login — { email, password, walletAddress }
+app.post('/auth/login', async (req, res) => {
+  const email = normalizeEmail(req.body?.email)
+  const password = typeof req.body?.password === 'string' ? req.body.password : ''
+  const walletAddress = normalizeWallet(req.body?.walletAddress ?? req.body?.wallet)
+
+  if (!email) return res.status(400).json({ error: 'Invalid email' })
+  if (!password) return res.status(400).json({ error: 'Missing password' })
+  if (!walletAddress) return res.status(400).json({ error: 'Missing walletAddress' })
+
+  try {
+    const user = await prisma.userProfile.findUnique({ where: { email } })
+    if (!user) return res.status(401).json({ error: 'Invalid credentials' })
+
+    const pwOk = await bcrypt.compare(password, user.password)
+    if (!pwOk) return res.status(401).json({ error: 'Invalid credentials' })
+
+    if (user.walletAddress !== walletAddress) {
+      return res.status(401).json({ error: 'Wallet does not match this account' })
+    }
+
+    const token = signAuthToken({ userId: user.id, walletAddress: user.walletAddress, role: user.role as ApiRole })
+    return res.json({
+      token,
+      profile: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        avatarUrl: user.avatarUrl,
+        hobbies: user.hobbies,
+        walletAddress: user.walletAddress,
+        role: user.role,
+      },
+    })
+  } catch (e) {
+    if (isDbConnectionError(e)) {
+      return res.status(503).json({ error: 'Database unavailable' })
+    }
+    console.error(e)
+    return res.status(500).json({ error: 'Server error' })
+  }
+})
+
 // POST /api/profile — sign up: { wallet, role }
 app.post('/api/profile', async (req, res) => {
   const wallet = normalizeWallet(req.body?.wallet)
@@ -144,7 +347,7 @@ app.post('/api/profile', async (req, res) => {
       return res.status(409).json({ error: 'Profile already exists', role: existing.role })
     }
     const profile = await prisma.userProfile.create({
-      data: { walletAddress: wallet, role },
+      data: { walletAddress: wallet, role, name: 'Unnamed', email: `${wallet}@wallet.local`, password: 'legacy', hobbies: [] },
     })
     return res.status(201).json({ walletAddress: profile.walletAddress, role: profile.role })
   } catch (e) {

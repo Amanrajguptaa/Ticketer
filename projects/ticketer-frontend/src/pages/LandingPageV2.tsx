@@ -6,6 +6,7 @@ import { OnboardingShell } from '../components/landing-v2/OnboardingShell'
 import { OnboardingComplete } from '../components/landing-v2/OnboardingComplete'
 import GateVerifier from './GateVerifier'
 import OrganizerDashboard from './OrganizerDashboard'
+import StudentTickets from './StudentTickets'
 import { useOnboardingStore } from '../store/onboardingStore'
 import type { OnboardingPhase, OnboardingRole } from '../types/onboarding'
 import { useNavigate } from 'react-router-dom'
@@ -124,7 +125,7 @@ export default function LandingPageV2() {
           return <OrganizerDashboard key="organiser-dashboard" />
         }
         if (role === 'student') {
-          return null
+          return <StudentTickets key="student-tickets" />
         }
         return <PlaceholderHome key="home" />
       case 'profile':

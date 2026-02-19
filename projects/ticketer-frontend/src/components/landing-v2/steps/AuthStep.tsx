@@ -23,6 +23,9 @@ const loginSchema = z.object({
   password: z.string().min(1, 'Enter your password'),
 })
 
+type SignupValues = z.infer<typeof signupSchema>
+type LoginValues = z.infer<typeof loginSchema>
+
 const INPUT_CLASS =
   'w-full bg-transparent border-none outline-none font-body font-medium text-[18px] text-tc-white placeholder:text-tc-dim caret-tc-lime'
 
@@ -115,7 +118,7 @@ const SubmitBtn = ({ visible, label }: { visible: boolean; label: string }) => (
 const SignupForm = ({
   onSubmit,
 }: {
-  onSubmit: () => void
+  onSubmit: (values: SignupValues) => void
 }) => {
   const emailFromStore = useOnboardingStore((s) => s.email)
   const setEmail = useOnboardingStore((s) => s.setEmail)
@@ -127,7 +130,7 @@ const SignupForm = ({
     handleSubmit,
     watch,
     formState: { isValid, errors },
-  } = useForm({
+  } = useForm<SignupValues>({
     resolver: zodResolver(signupSchema),
     defaultValues: { email: emailFromStore, password: '', confirmPassword: '' },
     mode: 'onChange',
@@ -193,7 +196,7 @@ const SignupForm = ({
   )
 }
 
-const LoginForm = ({ onSubmit }: { onSubmit: () => void }) => {
+const LoginForm = ({ onSubmit }: { onSubmit: (values: LoginValues) => void }) => {
   const emailFromStore = useOnboardingStore((s) => s.email)
   const setEmail = useOnboardingStore((s) => s.setEmail)
   const [showPw, setShowPw] = useState(false)
@@ -203,7 +206,7 @@ const LoginForm = ({ onSubmit }: { onSubmit: () => void }) => {
     handleSubmit,
     watch,
     formState: { isValid, errors },
-  } = useForm({
+  } = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: emailFromStore, password: '' },
     mode: 'onChange',
@@ -261,7 +264,9 @@ interface AuthStepProps {
 export const AuthStep = ({ onComplete }: AuthStepProps) => {
   const name = useOnboardingStore((s) => s.name)
   const nextStep = useOnboardingStore((s) => s.nextStep)
-  const [mode, setMode] = useState<'signup' | 'login'>('signup')
+  const setAuthMode = useOnboardingStore((s) => s.setAuthMode)
+  const setPassword = useOnboardingStore((s) => s.setPassword)
+  const [mode, setMode] = useState<'signup' | 'login'>(() => useOnboardingStore.getState().authMode)
 
   const handleAuth = () => {
     if (onComplete) {
@@ -269,6 +274,12 @@ export const AuthStep = ({ onComplete }: AuthStepProps) => {
     } else {
       nextStep()
     }
+  }
+
+  const switchMode = (m: 'signup' | 'login') => {
+    setMode(m)
+    setAuthMode(m)
+    setPassword('')
   }
 
   return (
@@ -303,7 +314,7 @@ export const AuthStep = ({ onComplete }: AuthStepProps) => {
           <button
             key={m}
             type="button"
-            onClick={() => setMode(m)}
+            onClick={() => switchMode(m)}
             className={`flex-1 py-2 rounded-md font-body font-semibold text-[13px] transition-colors duration-200 ${mode === m ? 'bg-tc-lime text-black' : 'text-tc-muted hover:text-tc-white'}`}
           >
             {m === 'signup' ? 'Sign up' : 'Log in'}
@@ -321,7 +332,13 @@ export const AuthStep = ({ onComplete }: AuthStepProps) => {
             transition={{ duration: 0.2 }}
             className="w-full"
           >
-            <SignupForm onSubmit={handleAuth} />
+            <SignupForm
+              onSubmit={(values) => {
+                setAuthMode('signup')
+                setPassword(values.password)
+                handleAuth()
+              }}
+            />
           </motion.div>
         ) : (
           <motion.div
@@ -332,7 +349,13 @@ export const AuthStep = ({ onComplete }: AuthStepProps) => {
             transition={{ duration: 0.2 }}
             className="w-full"
           >
-            <LoginForm onSubmit={handleAuth} />
+            <LoginForm
+              onSubmit={(values) => {
+                setAuthMode('login')
+                setPassword(values.password)
+                handleAuth()
+              }}
+            />
           </motion.div>
         )}
       </AnimatePresence>

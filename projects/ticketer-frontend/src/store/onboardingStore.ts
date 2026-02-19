@@ -3,16 +3,21 @@ import type { StudentOnboardingData } from '../types/onboarding'
 import type { OnboardingRole } from '../types/onboarding'
 
 type Direction = 'forward' | 'backward'
+type AuthMode = 'signup' | 'login'
 
 interface OnboardingState extends StudentOnboardingData {
   role: OnboardingRole | null
   currentStep: number
   direction: Direction
+  authMode: AuthMode
+  password: string
   setPhase: (phase: string) => void
   setRole: (role: OnboardingRole | null) => void
   setFormData: (data: Partial<StudentOnboardingData>) => void
   setName: (name: string) => void
   setEmail: (email: string) => void
+  setPassword: (password: string) => void
+  setAuthMode: (mode: AuthMode) => void
   nextStep: () => void
   prevStep: () => void
   toggleInterest: (id: string) => void
@@ -40,6 +45,8 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
   role: null,
   currentStep: 1,
   direction: 'forward',
+  authMode: 'signup',
+  password: '',
   setPhase: () => {},
   setRole: (role) => set({ role }),
   setFormData: (data) =>
@@ -51,6 +58,8 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
     set((s) => ({ name, formData: { ...s.formData, name } })),
   setEmail: (email) =>
     set((s) => ({ email, formData: { ...s.formData, email } })),
+  setPassword: (password) => set({ password }),
+  setAuthMode: (authMode) => set({ authMode }),
   nextStep: () =>
     set((s) => ({
       currentStep: Math.min(s.currentStep + 1, 3),
@@ -79,6 +88,8 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
       currentStep: 1,
       direction: 'forward',
       role: s.role,
+      authMode: s.authMode,
+      password: '',
       searchQuery: '',
       selectedEventId: null,
       selectedCategoryId: null,
