@@ -130,8 +130,9 @@ app.get('/api/profile', async (req, res) => {
     return res.status(400).json({ error: 'Missing wallet query parameter' })
   }
   try {
-    const profile = await prisma.userProfile.findUnique({
+    const profile = await prisma.userProfile.findFirst({
       where: { walletAddress: wallet },
+      orderBy: { createdAt: 'desc' },
     })
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' })
@@ -150,7 +151,7 @@ app.get('/api/profile', async (req, res) => {
 })
 
 // POST /auth/register — create account: { name, email, password, role, walletAddress, hobbies? }
-app.post('/auth/register', async (req, res) => {
+async function handleRegister(req: express.Request, res: express.Response) {
   const name = typeof req.body?.name === 'string' ? req.body.name.trim() : ''
   const email = normalizeEmail(req.body?.email)
   const password = typeof req.body?.password === 'string' ? req.body.password : ''
@@ -178,72 +179,7 @@ app.post('/auth/register', async (req, res) => {
   try {
     const existingByEmail = await prisma.userProfile.findUnique({ where: { email } })
     if (existingByEmail) {
-      // Make signup largely idempotent to avoid hard failures in the UI.
-      const walletMatches = existingByEmail.walletAddress === walletAddress
-      const roleMatches = existingByEmail.role === roleRaw
-      const pwMatches = await bcrypt.compare(password, existingByEmail.password)
-      if (walletMatches && roleMatches && pwMatches) {
-        const token = signAuthToken({
-          userId: existingByEmail.id,
-          walletAddress: existingByEmail.walletAddress,
-          role: existingByEmail.role as ApiRole,
-        })
-        return res.json({
-          token,
-          profile: {
-            id: existingByEmail.id,
-            name: existingByEmail.name,
-            email: existingByEmail.email,
-            avatarUrl: existingByEmail.avatarUrl,
-            hobbies: existingByEmail.hobbies,
-            walletAddress: existingByEmail.walletAddress,
-            role: existingByEmail.role,
-          },
-        })
-      }
       return res.status(409).json({ error: 'Account already exists for this email' })
-    }
-
-    const existingByWallet = await prisma.userProfile.findUnique({ where: { walletAddress } })
-    if (existingByWallet) {
-      const isLegacy =
-        existingByWallet.password === 'legacy' &&
-        typeof existingByWallet.email === 'string' &&
-        existingByWallet.email.endsWith('@wallet.local')
-      if (!isLegacy) {
-        return res.status(409).json({ error: 'Wallet is already linked to an account' })
-      }
-
-      const hashed = await bcrypt.hash(password, 10)
-      const upgraded = await prisma.userProfile.update({
-        where: { id: existingByWallet.id },
-        data: {
-          name,
-          email,
-          password: hashed,
-          hobbies,
-          role: roleRaw,
-        },
-      })
-
-      const token = signAuthToken({
-        userId: upgraded.id,
-        walletAddress: upgraded.walletAddress,
-        role: upgraded.role as ApiRole,
-      })
-
-      return res.status(201).json({
-        token,
-        profile: {
-          id: upgraded.id,
-          name: upgraded.name,
-          email: upgraded.email,
-          avatarUrl: upgraded.avatarUrl,
-          hobbies: upgraded.hobbies,
-          walletAddress: upgraded.walletAddress,
-          role: upgraded.role,
-        },
-      })
     }
 
     const hashed = await bcrypt.hash(password, 10)
@@ -283,10 +219,13 @@ app.post('/auth/register', async (req, res) => {
     console.error(e)
     return res.status(500).json({ error: 'Server error' })
   }
-})
+}
+app.post('/register', handleRegister)
+app.post('/login', async (req, res) => handleLogin(req, res))
 
-// POST /auth/login — { email, password, walletAddress }
-app.post('/auth/login', async (req, res) => {
+app.post('/auth/register', handleRegister)
+
+async function handleLogin(req: express.Request, res: express.Response) {
   const email = normalizeEmail(req.body?.email)
   const password = typeof req.body?.password === 'string' ? req.body.password : ''
   const walletAddress = normalizeWallet(req.body?.walletAddress ?? req.body?.wallet)
@@ -326,7 +265,9 @@ app.post('/auth/login', async (req, res) => {
     console.error(e)
     return res.status(500).json({ error: 'Server error' })
   }
-})
+}
+
+app.post('/auth/login', handleLogin)
 
 // POST /api/profile — sign up: { wallet, role }
 app.post('/api/profile', async (req, res) => {
@@ -340,8 +281,9 @@ app.post('/api/profile', async (req, res) => {
     return res.status(400).json({ error: 'Invalid role. Use organizer, student, or gate' })
   }
   try {
-    const existing = await prisma.userProfile.findUnique({
+    const existing = await prisma.userProfile.findFirst({
       where: { walletAddress: wallet },
+      orderBy: { createdAt: 'desc' },
     })
     if (existing) {
       return res.status(409).json({ error: 'Profile already exists', role: existing.role })

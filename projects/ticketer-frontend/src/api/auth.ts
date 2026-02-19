@@ -1,4 +1,10 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+function getApiBase(): string {
+  const raw = (import.meta.env.VITE_API_URL ?? '').trim()
+  const unquoted = raw.replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1').trim()
+  return (unquoted || 'http://localhost:3001').replace(/\/+$/, '')
+}
+
+const API_BASE = getApiBase()
 
 export type ApiRole = 'organizer' | 'student' | 'gate'
 
@@ -25,7 +31,7 @@ export async function registerUser(input: {
   walletAddress: string
   hobbies?: string[]
 }): Promise<AuthResponse> {
-  const res = await fetch(`${API_BASE}/auth/register`, {
+  const res = await fetch(`${API_BASE}/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(input),
@@ -42,7 +48,7 @@ export async function loginUser(input: {
   password: string
   walletAddress: string
 }): Promise<AuthResponse> {
-  const res = await fetch(`${API_BASE}/auth/login`, {
+  const res = await fetch(`${API_BASE}/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(input),

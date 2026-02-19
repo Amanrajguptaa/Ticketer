@@ -5,7 +5,6 @@ import { useOnboardingStore } from '../../store/onboardingStore'
 import ConnectWallet from '../ConnectWallet'
 import { useAuth } from '../../context/AuthContext'
 import { loginUser, registerUser } from '../../api/auth'
-import { getProfile } from '../../api/profile'
 export const OnboardingComplete = ({
   onFinish,
   onBackToRoles,
@@ -53,17 +52,9 @@ export const OnboardingComplete = ({
     setErrorMsg(null)
 
     try {
-      const existing = await getProfile(walletAddress)
       const apiRole = mapRole(role)
 
       if (authMode === 'signup') {
-        // Signup flow: never auto-login. If an account already exists for this wallet, show an error.
-        if (existing) {
-          setStatus('error')
-          setErrorMsg('This wallet is already registered. Go back and choose Log in instead of Sign up.')
-          return
-        }
-
         const resp = await registerUser({
           name,
           email,
@@ -87,12 +78,6 @@ export const OnboardingComplete = ({
       }
 
       // Login flow
-      if (!existing) {
-        setStatus('error')
-        setErrorMsg('No account found for this wallet. Go back and choose Sign up first.')
-        return
-      }
-
       const resp = await loginUser({ email, password, walletAddress })
 
       try {
