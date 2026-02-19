@@ -6,6 +6,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode'
 import { AlgorandClient } from '@algorandfoundation/algokit-utils'
 import { useAuth } from '../context/AuthContext'
 import { ellipseAddress } from '../utils/ellipseAddress'
+import { WalletBalance } from '../components/WalletBalance'
 import { getTicket, verifyTicket, type VerifyResult } from '../api/events'
 import { TicketerContractsClient } from '../contracts/TicketerContracts'
 import { getAlgodConfigFromViteEnvironment, getIndexerConfigFromViteEnvironment } from '../utils/network/getAlgoClientConfigs'
@@ -158,8 +159,8 @@ export default function GateVerifier() {
             </button>
           )}
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-400">
-          <span>{ellipseAddress(activeAddress)}</span>
+        <div className="flex items-center gap-2 text-sm">
+          <WalletBalance address={activeAddress ?? undefined} variant="light" />
         </div>
       </header>
 

@@ -6,6 +6,7 @@ import { AlgorandClient } from '@algorandfoundation/algokit-utils'
 import { AlgoAmount } from '@algorandfoundation/algokit-utils/types/amount'
 import { useAuth } from '../context/AuthContext'
 import { ellipseAddress } from '../utils/ellipseAddress'
+import { WalletBalance } from '../components/WalletBalance'
 import { listEvents, listMyTickets, buyTicket, type Event, type Ticket } from '../api/events'
 import { TicketerContractsClient } from '../contracts/TicketerContracts'
 import { getAlgodConfigFromViteEnvironment, getIndexerConfigFromViteEnvironment } from '../utils/network/getAlgoClientConfigs'
@@ -152,8 +153,8 @@ export default function StudentTickets() {
           </button>
           <span className="font-bold" style={{ color: '#1A56DB' }}>TicketChain</span>
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-400">
-          <span>{ellipseAddress(activeAddress)}</span>
+        <div className="flex items-center gap-2 text-sm">
+          <WalletBalance address={activeAddress ?? undefined} variant="light" />
         </div>
       </header>
 
