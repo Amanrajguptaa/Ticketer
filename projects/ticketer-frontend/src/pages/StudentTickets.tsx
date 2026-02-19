@@ -87,8 +87,9 @@ export default function StudentTickets() {
           amount: AlgoAmount.MicroAlgos(priceInMicroAlgos),
         })
 
+        // Use a publicly reachable API URL so wallets can fetch metadata and show the ticket as an NFT (not just "asset")
         const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001'
-        const metadataUrl = `${API_BASE}/api/nft-metadata?appId=${event.appId}`
+        const metadataUrl = `${API_BASE}/api/nft-metadata?appId=${event.appId}#arc3`
 
         // Step 1: Mint ticket NFT (no transfer yet)
         const mintResult = await appClient.send.optIn.mintTicket({

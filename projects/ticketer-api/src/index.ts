@@ -76,10 +76,13 @@ app.get('/api/nft-metadata', async (req, res) => {
     }
     const baseUrl = process.env.API_BASE_URL || `http://localhost:${PORT}`
     const imageUrl = event.coverImageUrl || `${baseUrl}/placeholder-ticket.png`
+    const imageFull = imageUrl.startsWith('http') ? imageUrl : `${baseUrl}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`
     const arc3 = {
+      standard: 'arc3',
       name: event.name,
       description: `Ticket for ${event.name} at ${event.venue} on ${event.date.toISOString()}`,
-      image: imageUrl.startsWith('http') ? imageUrl : `${baseUrl}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`,
+      image: imageFull,
+      image_mimetype: 'image/png',
       external_url: `${baseUrl}/events/${event.id}`,
       properties: {
         venue: event.venue,
