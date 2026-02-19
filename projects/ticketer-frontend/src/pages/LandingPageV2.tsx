@@ -70,6 +70,7 @@ function PlaceholderGroupedEvents() {
 }
 
 export default function LandingPageV2() {
+  const navigate = useNavigate()
   const [phase, setPhase] = useState<OnboardingPhase>('intro')
   const role = useOnboardingStore((s) => s.role)
   const setStoreRole = useOnboardingStore((s) => s.setRole)
@@ -86,6 +87,12 @@ export default function LandingPageV2() {
       resetOnboarding()
     }
   }, [phase, resetOnboarding])
+
+  useEffect(() => {
+    if (phase === 'home' && role === 'student') {
+      navigate('/student-home', { replace: true })
+    }
+  }, [phase, role, navigate])
 
   const renderPhase = () => {
     switch (phase) {
@@ -115,6 +122,9 @@ export default function LandingPageV2() {
         }
         if (role === 'organiser') {
           return <OrganizerDashboard key="organiser-dashboard" />
+        }
+        if (role === 'student') {
+          return null
         }
         return <PlaceholderHome key="home" />
       case 'profile':

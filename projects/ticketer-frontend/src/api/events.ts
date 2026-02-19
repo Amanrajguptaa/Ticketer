@@ -35,6 +35,16 @@ export async function listEvents(organizerWallet?: string): Promise<Event[]> {
   return res.json()
 }
 
+export async function getEvent(eventId: string): Promise<Event | null> {
+  const res = await fetch(`${API_BASE}/api/events/${encodeURIComponent(eventId)}`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+  })
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error('Failed to fetch event')
+  return res.json()
+}
+
 export async function createEvent(data: {
   organizerAddress: string
   name: string

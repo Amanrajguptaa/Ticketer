@@ -17,6 +17,16 @@ interface OnboardingState extends StudentOnboardingData {
   prevStep: () => void
   toggleInterest: (id: string) => void
   resetOnboarding: () => void
+  // Student home feed / nav
+  formData: StudentOnboardingData
+  searchQuery: string
+  setSearchQuery: (q: string) => void
+  selectedEventId: string | null
+  setSelectedEventId: (id: string | null) => void
+  selectedCategoryId: string | null
+  selectedOrganiserId: string | null
+  openOrganiser: (id: string) => void
+  openCategory: (id: string) => void
 }
 
 const initialFormData: StudentOnboardingData = {
@@ -32,9 +42,15 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
   direction: 'forward',
   setPhase: () => {},
   setRole: (role) => set({ role }),
-  setFormData: (data) => set((s) => ({ ...s, ...data })),
-  setName: (name) => set({ name }),
-  setEmail: (email) => set({ email }),
+  setFormData: (data) =>
+    set((s) => {
+      const next = { ...s.formData, ...data }
+      return { ...s, ...data, formData: next }
+    }),
+  setName: (name) =>
+    set((s) => ({ name, formData: { ...s.formData, name } })),
+  setEmail: (email) =>
+    set((s) => ({ email, formData: { ...s.formData, email } })),
   nextStep: () =>
     set((s) => ({
       currentStep: Math.min(s.currentStep + 1, 3),
@@ -48,17 +64,35 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
   toggleInterest: (id) =>
     set((s) => {
       const has = s.interests.includes(id)
-      if (has) return { interests: s.interests.filter((x) => x !== id) }
+      if (has) {
+        const interests = s.interests.filter((x) => x !== id)
+        return { interests, formData: { ...s.formData, interests } }
+      }
       if (s.interests.length >= 3) return s
-      return { interests: [...s.interests, id] }
+      const interests = [...s.interests, id]
+      return { interests, formData: { ...s.formData, interests } }
     }),
   resetOnboarding: () =>
     set((s) => ({
       ...initialFormData,
+      formData: { ...initialFormData },
       currentStep: 1,
       direction: 'forward',
       role: s.role,
+      searchQuery: '',
+      selectedEventId: null,
+      selectedCategoryId: null,
+      selectedOrganiserId: null,
     })),
+  formData: { ...initialFormData },
+  searchQuery: '',
+  setSearchQuery: (q) => set({ searchQuery: q }),
+  selectedEventId: null,
+  setSelectedEventId: (id) => set({ selectedEventId: id }),
+  selectedCategoryId: null,
+  selectedOrganiserId: null,
+  openOrganiser: (id) => set({ selectedOrganiserId: id, selectedCategoryId: null }),
+  openCategory: (id) => set({ selectedCategoryId: id, selectedOrganiserId: null }),
 }))
 
 export function setOnboardingPhaseSetter(fn: (phase: string) => void) {
