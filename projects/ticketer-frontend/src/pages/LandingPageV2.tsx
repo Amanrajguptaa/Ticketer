@@ -115,7 +115,11 @@ export default function LandingPageV2() {
         return <OnboardingShell key="onboarding" />
       case 'complete':
         return (
-          <OnboardingComplete key="complete" onFinish={() => setPhase('home')} />
+          <OnboardingComplete
+            key="complete"
+            onFinish={() => setPhase('home')}
+            onBackToRoles={() => setPhase('role-selection')}
+          />
         )
       case 'home':
         if (role === 'guard') {
