@@ -16,9 +16,9 @@ import {
 
 @contract({
   stateTotals: {
-    globalUints: 5,
+    globalUints: 3,
     globalBytes: 4,
-    localUints: 4,
+    localUints: 6,
     localBytes: 0,
   },
 })
@@ -28,21 +28,20 @@ export class TicketerContracts extends Contract {
   eventName = GlobalState<string>()
   eventDate = GlobalState<string>()
   eventVenue = GlobalState<string>()
-  ticketPrice = GlobalState<uint64>() // in microAlgos
+  ticketPrice = GlobalState<uint64>()
   ticketSupply = GlobalState<uint64>()
   ticketsSold = GlobalState<uint64>()
-  ticketAsset = GlobalState<Asset>()
-  minted = GlobalState<uint64>() // 0 = not yet, 1 = ASA created
 
   // ── Local state (per-user who opts in) ────────────────────────────────
-  owned = LocalState<uint64>()
+  ownedAssetId = LocalState<uint64>() // 0 = no ticket
+  pendingAssetId = LocalState<uint64>() // 0 = no pending mint
   used = LocalState<uint64>()
   listedForSale = LocalState<uint64>()
   listedPrice = LocalState<uint64>()
 
   // ═══════════════════════════════════════════════════════════════════════
   //  STEP 1 — Create event (stores state, NO inner transactions)
-  //  Called during app creation. App is not funded yet so no ASA minting.
+  //  No pre-minted ASA; each ticket will be a unique NFT minted on purchase.
   // ═══════════════════════════════════════════════════════════════════════
   @abimethod({ onCreate: 'require' })
   createEvent(
@@ -59,75 +58,88 @@ export class TicketerContracts extends Contract {
     this.ticketPrice.value = priceInMicroAlgos
     this.ticketSupply.value = supply
     this.ticketsSold.value = 0
-    this.minted.value = 0
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  //  STEP 2 — Mint ticket ASA (called AFTER the app is funded)
-  //  Creates a fungible ASA: total = ticketSupply, each unit = 1 ticket.
-  //  Supply is enforced on-chain — impossible to exceed declared total.
-  //  Contract is the clawback authority to enable resale transfers.
-  // ═══════════════════════════════════════════════════════════════════════
-  mintTickets(): uint64 {
-    assert(Txn.sender === this.organizer.value, 'Only organizer')
-    assert(this.minted.value === 0, 'Already minted')
-
-    const assetTxn = itxn
-      .assetConfig({
-        total: this.ticketSupply.value,
-        decimals: 0,
-        defaultFrozen: false,
-        unitName: 'TCKT',
-        assetName: this.eventName.value,
-        manager: Global.currentApplicationAddress,
-        reserve: Global.currentApplicationAddress,
-        clawback: Global.currentApplicationAddress,
-      })
-      .submit()
-
-    this.ticketAsset.value = assetTxn.createdAsset
-    this.minted.value = 1
-    return assetTxn.createdAsset.id
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════
-  //  BUY TICKET — Atomic: student pays ALGO → contract sends 1 NFT unit.
-  //  If either side fails the whole group is rolled back.
-  //  One ticket per wallet enforced on-chain.
+  //  STEP 2a — Mint ticket NFT (no transfer yet).
+  //  Creates one unique NFT (ARC-3: total=1, url=metadata) and records it as pending.
+  //  Frontend flow:
+  //    1) Call mintTicket(payment, metadataUrl) → returns assetId
+  //    2) Wallet opts buyer into that ASA
+  //    3) Call claimTicket(assetId) to receive the NFT
   // ═══════════════════════════════════════════════════════════════════════
   @abimethod({ allowActions: ['OptIn'] })
-  buyTicket(payment: gtxn.PaymentTxn): void {
-    assert(this.minted.value === 1, 'Tickets not minted yet')
+  mintTicket(payment: gtxn.PaymentTxn, metadataUrl: string): uint64 {
     assert(this.ticketsSold.value < this.ticketSupply.value, 'Sold out')
     assert(
       payment.receiver === Global.currentApplicationAddress,
       'Payment must be sent to the app',
     )
     assert(payment.amount >= this.ticketPrice.value, 'Insufficient payment')
-    // OptIn action already prevents double purchase (can't opt in twice)
 
+    const minFee: uint64 = Global.minTxnFee
+    const assetTxn = itxn
+      .assetConfig({
+        fee: minFee,
+        total: 1,
+        decimals: 0,
+        defaultFrozen: false,
+        unitName: 'TCKT',
+        assetName: this.eventName.value,
+        url: metadataUrl,
+        manager: Global.currentApplicationAddress,
+        reserve: Global.currentApplicationAddress,
+        clawback: Global.currentApplicationAddress,
+      })
+      .submit()
+
+    const createdAsset: Asset = assetTxn.createdAsset
+    this.pendingAssetId(Txn.sender).value = createdAsset.id
+    this.used(Txn.sender).value = 0
+    this.listedForSale(Txn.sender).value = 0
+    this.listedPrice(Txn.sender).value = 0
+    this.ticketsSold.value = this.ticketsSold.value + 1
+    return createdAsset.id
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  STEP 2b — Claim ticket NFT after wallet opt-in.
+  //  Requires:
+  //    - pendingAssetId(sender) == assetId
+  //    - sender has opted in to assetId
+  //  Then transfers 1 unit from app to sender and finalizes ownership.
+  // ═══════════════════════════════════════════════════════════════════════
+  @abimethod({ allowActions: ['NoOp'] })
+  claimTicket(assetId: uint64): void {
+    const pending: uint64 = this.pendingAssetId(Txn.sender).value
+    assert(pending !== 0, 'No pending ticket')
+    assert(pending === assetId, 'Wrong asset')
+
+    const nftAsset: Asset = Asset(assetId)
+
+    // Ensure sender is opted in; if not, the transfer will fail with must optin
+    const minFee: uint64 = Global.minTxnFee
     itxn
       .assetTransfer({
-        xferAsset: this.ticketAsset.value,
+        fee: minFee,
+        xferAsset: nftAsset,
         assetReceiver: Txn.sender,
         assetAmount: 1,
       })
       .submit()
 
-    this.owned(Txn.sender).value = 1
+    this.pendingAssetId(Txn.sender).value = 0
+    this.ownedAssetId(Txn.sender).value = assetId
     this.used(Txn.sender).value = 0
     this.listedForSale(Txn.sender).value = 0
     this.listedPrice(Txn.sender).value = 0
-    const newSold: uint64 = this.ticketsSold.value + 1
-    this.ticketsSold.value = newSold
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  //  VERIFY — Gate scans QR → confirms NFT ownership → marks USED.
-  //  Second scan returns "already used" → prevents re-entry.
+  //  VERIFY — Gate confirms NFT ownership → marks USED.
   // ═══════════════════════════════════════════════════════════════════════
   verifyAndUse(ticketHolder: Account): boolean {
-    assert(this.owned(ticketHolder).value === 1, 'No valid ticket')
+    assert(this.ownedAssetId(ticketHolder).value !== 0, 'No valid ticket')
     assert(this.used(ticketHolder).value === 0, 'Ticket already used')
 
     this.used(ticketHolder).value = 1
@@ -138,7 +150,7 @@ export class TicketerContracts extends Contract {
   //  RESALE — Price cap + automatic 5% royalty to organizer
   // ═══════════════════════════════════════════════════════════════════════
   listForSale(price: uint64): void {
-    assert(this.owned(Txn.sender).value === 1, 'No ticket to list')
+    assert(this.ownedAssetId(Txn.sender).value !== 0, 'No ticket to list')
     assert(this.used(Txn.sender).value === 0, 'Ticket already used')
     assert(price <= this.ticketPrice.value, 'Cannot list above face value')
 
@@ -147,14 +159,15 @@ export class TicketerContracts extends Contract {
   }
 
   cancelListing(): void {
-    assert(this.owned(Txn.sender).value === 1, 'No ticket')
+    assert(this.ownedAssetId(Txn.sender).value !== 0, 'No ticket')
     this.listedForSale(Txn.sender).value = 0
     this.listedPrice(Txn.sender).value = 0
   }
 
   @abimethod({ allowActions: ['OptIn', 'NoOp'] })
   buyResale(payment: gtxn.PaymentTxn, seller: Account): void {
-    assert(this.owned(seller).value === 1, 'Seller has no ticket')
+    const sellerAssetId: uint64 = this.ownedAssetId(seller).value
+    assert(sellerAssetId !== 0, 'Seller has no ticket')
     assert(this.used(seller).value === 0, 'Ticket already used')
     assert(this.listedForSale(seller).value === 1, 'Ticket not listed for sale')
     assert(
@@ -167,34 +180,37 @@ export class TicketerContracts extends Contract {
     const royalty: uint64 = (payment.amount * 5) / 100
     const sellerPayout: uint64 = payment.amount - royalty
 
+    const minFee: uint64 = Global.minTxnFee
     if (sellerPayout > 0) {
       itxn
         .payment({
+          fee: minFee,
           receiver: seller,
           amount: sellerPayout,
         })
         .submit()
     }
 
+    const nftAsset: Asset = Asset(sellerAssetId)
     itxn
       .assetTransfer({
-        xferAsset: this.ticketAsset.value,
+        fee: minFee,
+        xferAsset: nftAsset,
         assetSender: seller,
         assetReceiver: Txn.sender,
         assetAmount: 1,
       })
       .submit()
 
-    this.owned(seller).value = 0
+    this.ownedAssetId(seller).value = 0
     this.listedForSale(seller).value = 0
     this.listedPrice(seller).value = 0
-    this.owned(Txn.sender).value = 1
+    this.ownedAssetId(Txn.sender).value = sellerAssetId
     this.used(Txn.sender).value = 0
     this.listedForSale(Txn.sender).value = 0
     this.listedPrice(Txn.sender).value = 0
   }
 
-  // ── Organizer withdraws collected ticket sale revenue ─────────────────
   withdraw(): void {
     assert(Txn.sender === this.organizer.value, 'Only organizer can withdraw')
 
@@ -205,6 +221,7 @@ export class TicketerContracts extends Contract {
 
     itxn
       .payment({
+        fee: Global.minTxnFee,
         receiver: this.organizer.value,
         amount: balance,
       })

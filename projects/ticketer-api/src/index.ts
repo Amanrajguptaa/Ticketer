@@ -26,16 +26,21 @@ function serializeEvent(event: Record<string, unknown>) {
   return {
     ...event,
     appId: event.appId != null ? String(event.appId) : null,
-    assetId: event.assetId != null ? String(event.assetId) : null,
   }
 }
 
-function serializeTicket(ticket: Record<string, unknown>) {
+function serializeTicketAssetId(ticket: Record<string, unknown>) {
   const t = { ...ticket }
-  if (t.event && typeof t.event === 'object') {
-    t.event = serializeEvent(t.event as Record<string, unknown>)
-  }
+  if (t.assetId != null) t.assetId = String(t.assetId)
   return t
+}
+
+function serializeTicket(ticket: Record<string, unknown>) {
+  let t = { ...ticket }
+  if (t.event && typeof t.event === 'object') {
+    t = { ...t, event: serializeEvent(t.event as Record<string, unknown>) }
+  }
+  return serializeTicketAssetId(t)
 }
 
 // Health check — use this to verify DB connectivity
@@ -52,6 +57,42 @@ app.get('/health', async (_req, res) => {
       })
     }
     return res.status(503).json({ status: 'unavailable', db: 'error' })
+  }
+})
+
+// GET /api/nft-metadata?appId=... — ARC-3 metadata for ticket NFTs (used as ASA url)
+app.get('/api/nft-metadata', async (req, res) => {
+  const appIdRaw = req.query.appId
+  if (!appIdRaw) {
+    return res.status(400).json({ error: 'Missing appId' })
+  }
+  try {
+    const appId = BigInt(String(appIdRaw))
+    const event = await prisma.event.findFirst({
+      where: { appId },
+    })
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' })
+    }
+    const baseUrl = process.env.API_BASE_URL || `http://localhost:${PORT}`
+    const imageUrl = event.coverImageUrl || `${baseUrl}/placeholder-ticket.png`
+    const arc3 = {
+      name: event.name,
+      description: `Ticket for ${event.name} at ${event.venue} on ${event.date.toISOString()}`,
+      image: imageUrl.startsWith('http') ? imageUrl : `${baseUrl}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`,
+      external_url: `${baseUrl}/events/${event.id}`,
+      properties: {
+        venue: event.venue,
+        date: event.date.toISOString(),
+        eventId: event.id,
+      },
+    }
+    return res.json(arc3)
+  } catch (e) {
+    if (isDbConnectionError(e)) {
+      return res.status(503).json({ error: 'Database unavailable' })
+    }
+    return res.status(500).json({ error: 'Server error' })
   }
 })
 
@@ -147,7 +188,6 @@ app.post('/api/events', async (req, res) => {
   const priceAlgo = req.body?.priceAlgo
   const coverImageUrl = req.body?.coverImageUrl ?? null
   const appId = req.body?.appId != null ? BigInt(req.body.appId) : null
-  const assetId = req.body?.assetId != null ? BigInt(req.body.assetId) : null
   const appAddress = req.body?.appAddress ?? null
 
   if (!organizerAddress || !name || !date || !venue) {
@@ -171,7 +211,6 @@ app.post('/api/events', async (req, res) => {
         priceAlgo: price,
         coverImageUrl: coverImageUrl ? String(coverImageUrl) : null,
         appId,
-        assetId,
         appAddress: appAddress ? String(appAddress) : null,
       },
     })
@@ -206,12 +245,13 @@ app.get('/api/events/:id', async (req, res) => {
   }
 })
 
-// POST /api/events/:id/buy — buy a ticket { wallet }
+// POST /api/events/:id/buy — buy a ticket { wallet, assetId? } (assetId for on-chain NFT)
 app.post('/api/events/:id/buy', async (req, res) => {
   const buyerAddress = normalizeWallet(req.body?.wallet)
   if (!buyerAddress) {
     return res.status(400).json({ error: 'Missing wallet' })
   }
+  const assetId = req.body?.assetId != null ? BigInt(req.body.assetId) : null
   try {
     const event = await prisma.event.findUnique({
       where: { id: req.params.id },
@@ -230,7 +270,7 @@ app.post('/api/events/:id/buy', async (req, res) => {
       return res.status(409).json({ error: 'You already have a ticket for this event', ticketId: existing.id })
     }
     const ticket = await prisma.ticket.create({
-      data: { eventId: event.id, buyerAddress },
+      data: { eventId: event.id, buyerAddress, assetId },
       include: { event: true },
     })
     return res.status(201).json(serializeTicket(ticket as unknown as Record<string, unknown>))

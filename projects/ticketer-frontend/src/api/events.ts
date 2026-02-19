@@ -11,7 +11,6 @@ export interface Event {
   priceAlgo: string
   coverImageUrl: string | null
   appId: string | null
-  assetId: string | null
   appAddress: string | null
   createdAt: string
   updatedAt: string
@@ -21,6 +20,7 @@ export interface Ticket {
   id: string
   eventId: string
   buyerAddress: string
+  assetId?: string | null
   purchasedAt: string
   used: boolean
   event: Event
@@ -44,7 +44,6 @@ export async function createEvent(data: {
   priceAlgo: string
   coverImageUrl?: string
   appId?: string
-  assetId?: string
   appAddress?: string
 }): Promise<Event> {
   const res = await fetch(`${API_BASE}/api/events`, {
@@ -59,11 +58,17 @@ export async function createEvent(data: {
   return res.json()
 }
 
-export async function buyTicket(eventId: string, wallet: string): Promise<Ticket> {
+export async function buyTicket(
+  eventId: string,
+  wallet: string,
+  assetId?: string | number | bigint,
+): Promise<Ticket> {
+  const body: { wallet: string; assetId?: string } = { wallet }
+  if (assetId != null) body.assetId = String(assetId)
   const res = await fetch(`${API_BASE}/api/events/${encodeURIComponent(eventId)}/buy`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ wallet }),
+    body: JSON.stringify(body),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))

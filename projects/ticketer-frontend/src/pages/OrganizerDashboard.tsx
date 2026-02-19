@@ -61,6 +61,11 @@ export default function OrganizerDashboard() {
     const priceInMicroAlgos = Math.round(priceAlgoNum * 1_000_000)
 
     try {
+      if (!transactionSigner) {
+        setFormError('Wallet signer not available. Please reconnect your wallet.')
+        setFormLoading(false)
+        return
+      }
       // ── Step 1: Deploy smart contract on-chain ───────────────────────
       setFormStatus('Deploying contract on-chain (Pera will ask you to sign)…')
 
@@ -68,6 +73,7 @@ export default function OrganizerDashboard() {
       const indexerConfig = getIndexerConfigFromViteEnvironment()
       const algorand = AlgorandClient.fromConfig({ algodConfig, indexerConfig })
       algorand.setDefaultSigner(transactionSigner)
+      algorand.account.setSigner(activeAddress, transactionSigner)
 
       const factory = new TicketerContractsFactory({
         defaultSender: activeAddress,
@@ -87,23 +93,15 @@ export default function OrganizerDashboard() {
       const appId = appClient.appClient.appId
       const appAddress = appClient.appAddress
 
-      // ── Step 2: Fund the app (covers MBR for ASA + state) ──────────
+      // ── Step 2: Fund the app (covers MBR when minting NFTs on purchase) ──
       setFormStatus('Funding contract account…')
       await algorand.send.payment({
         sender: activeAddress,
         receiver: appAddress,
-        amount: AlgoAmount.MicroAlgos(300_000),
+        amount: AlgoAmount.MicroAlgos(500_000),
       })
 
-      // ── Step 3: Mint the ticket ASA ────────────────────────────────
-      setFormStatus('Minting ticket NFTs on Algorand…')
-      const mintResult = await appClient.send.mintTickets({
-        args: {},
-        extraFee: AlgoAmount.MicroAlgos(1_000),
-      })
-      const assetId = mintResult.return
-
-      // ── Step 4: Save to database ───────────────────────────────────
+      // ── Step 3: Save to database (each ticket = unique NFT minted on buy) ──
       setFormStatus('Saving event…')
       await createEvent({
         organizerAddress: activeAddress,
@@ -114,7 +112,6 @@ export default function OrganizerDashboard() {
         priceAlgo: form.priceAlgo,
         coverImageUrl: form.coverImageUrl.trim() || undefined,
         appId: String(appId),
-        assetId: assetId != null ? String(assetId) : undefined,
         appAddress: String(appAddress),
       })
 
@@ -259,7 +256,7 @@ export default function OrganizerDashboard() {
                   </p>
                   {ev.appId && (
                     <p className="text-xs text-gray-500 mt-1">
-                      App #{ev.appId} · ASA #{ev.assetId}
+                      App #{ev.appId} · NFT per ticket
                     </p>
                   )}
                 </div>

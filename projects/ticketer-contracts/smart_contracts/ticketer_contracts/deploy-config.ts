@@ -26,18 +26,12 @@ export async function deploy() {
   console.log(`App deployed at ID: ${appClient.appClient.appId}`)
   console.log(`App address: ${appClient.appAddress}`)
 
-  // Step 2: Fund the app
+  // Step 2: Fund the app (enough for MBR when minting NFTs on purchase)
   await algorand.send.payment({
     amount: AlgoAmount.MicroAlgos(400_000),
     sender: deployer.addr,
     receiver: appClient.appAddress,
   })
 
-  // Step 3: Mint ticket ASA
-  const mintResult = await appClient.send.mintTickets({
-    args: {},
-    extraFee: AlgoAmount.MicroAlgos(1_000),
-  })
-
-  console.log(`Ticket ASA created with ID: ${mintResult.return}`)
+  console.log('Each ticket is minted as a unique NFT (ARC-3) when a student buys.')
 }

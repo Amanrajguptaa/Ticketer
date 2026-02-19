@@ -65,8 +65,8 @@ export default function StudentTickets() {
     setBuyingId(event.id)
 
     try {
-      // If the event has an on-chain app, buy through the smart contract
-      if (event.appId && event.assetId && event.appAddress) {
+      let nftAssetId: string | number | bigint | undefined
+      if (event.appId && event.appAddress) {
         const algodConfig = getAlgodConfigFromViteEnvironment()
         const indexerConfig = getIndexerConfigFromViteEnvironment()
         const algorand = AlgorandClient.fromConfig({ algodConfig, indexerConfig })
@@ -79,36 +79,49 @@ export default function StudentTickets() {
           algorand,
         })
 
-        // Step 1: Opt in to the ASA so wallet can receive the NFT
-        setBuyStatus('Opting in to ticket asset (Pera will ask to sign)…')
-        const assetId = BigInt(event.assetId)
-        await algorand.send.assetOptIn({
-          sender: activeAddress,
-          assetId,
-          signer: transactionSigner,
-        })
-
-        // Step 2: Build and send the buy transaction (payment + app call with OptIn)
-        setBuyStatus('Buying ticket on-chain…')
+        setBuyStatus('Step 1/3: Minting unique NFT ticket (Pera will ask to sign)…')
         const priceInMicroAlgos = Math.round(parseFloat(event.priceAlgo) * 1_000_000)
-
         const payTxn = await algorand.createTransaction.payment({
           sender: activeAddress,
           receiver: event.appAddress,
           amount: AlgoAmount.MicroAlgos(priceInMicroAlgos),
         })
 
-        await appClient.send.optIn.buyTicket({
-          args: { payment: payTxn },
-          extraFee: AlgoAmount.MicroAlgos(1_000),
+        const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+        const metadataUrl = `${API_BASE}/api/nft-metadata?appId=${event.appId}`
+
+        // Step 1: Mint ticket NFT (no transfer yet)
+        const mintResult = await appClient.send.optIn.mintTicket({
+          args: { payment: payTxn, metadataUrl },
+          extraFee: AlgoAmount.MicroAlgos(2_000),
+          sender: activeAddress,
+          signer: transactionSigner,
+        })
+        if (mintResult.return != null) nftAssetId = mintResult.return
+
+        if (nftAssetId == null) {
+          throw new Error('Ticket mint did not return an assetId')
+        }
+
+        // Step 2: Opt buyer into the newly minted ASA
+        setBuyStatus('Step 2/3: Opting wallet into ticket asset…')
+        await algorand.send.assetOptIn({
+          sender: activeAddress,
+          assetId: BigInt(nftAssetId),
+          signer: transactionSigner,
+        })
+
+        // Step 3: Claim the NFT from the contract
+        setBuyStatus('Step 3/3: Claiming NFT ticket from contract…')
+        await appClient.send.claimTicket({
+          args: { assetId: BigInt(nftAssetId) },
           sender: activeAddress,
           signer: transactionSigner,
         })
       }
 
-      // Record in database (works for both on-chain and off-chain events)
       setBuyStatus('Recording purchase…')
-      await buyTicket(event.id, activeAddress)
+      await buyTicket(event.id, activeAddress, nftAssetId)
 
       await Promise.all([fetchEvents(), fetchTickets()])
       setBuyStatus(null)
@@ -124,10 +137,9 @@ export default function StudentTickets() {
   if (!activeAddress || role !== 'student') return null
 
   const tabClass = (t: Tab) =>
-    `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-      tab === t
-        ? 'bg-[#1A56DB] text-white'
-        : 'text-gray-400 hover:text-white hover:bg-white/10'
+    `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t
+      ? 'bg-[#1A56DB] text-white'
+      : 'text-gray-400 hover:text-white hover:bg-white/10'
     }`
 
   return (
@@ -203,7 +215,7 @@ export default function StudentTickets() {
                         </p>
                         <p className="text-sm text-gray-400">{ev.venue}</p>
                         {ev.appId && (
-                          <p className="text-xs text-green-500 mt-1">On-chain (ASA #{ev.assetId})</p>
+                          <p className="text-xs text-green-500 mt-1">On-chain · NFT ticket (ARC-3)</p>
                         )}
                       </div>
                       <div className="flex items-center justify-between mt-auto pt-2 border-t border-white/10">
@@ -281,17 +293,16 @@ export default function StudentTickets() {
                         </div>
                         <div className="flex flex-col gap-1 min-w-0">
                           <span
-                            className={`self-start text-xs px-2 py-1 rounded-lg font-medium ${
-                              t.used
+                            className={`self-start text-xs px-2 py-1 rounded-lg font-medium ${t.used
                                 ? 'bg-gray-500/20 text-gray-400'
                                 : 'bg-green-500/20 text-green-400'
-                            }`}
+                              }`}
                           >
                             {t.used ? 'Used' : 'Valid'}
                           </span>
-                          {t.event.assetId && (
+                          {t.assetId && (
                             <span className="self-start text-xs px-2 py-1 rounded-lg font-medium bg-blue-500/20 text-blue-400">
-                              NFT (ASA #{t.event.assetId})
+                              NFT #{t.assetId}
                             </span>
                           )}
                           <p className="text-xs text-gray-500 truncate">ID: {t.id}</p>

@@ -8,8 +8,10 @@ describe('TicketerContracts contract', () => {
   it('creates an event and initialises global state', () => {
     const contract = ctx.contract.create(TicketerContracts)
 
-    const assetId = contract.createEvent('Test Event', '2026-03-01', 'Main Hall', 100, 1_000_000)
+    contract.createEvent('Test Event', '2026-03-01', 'Main Hall', 100, 1_000_000)
 
-    expect(assetId).toBeGreaterThan(0)
+    expect(contract.eventName.value).toBe('Test Event')
+    expect(contract.ticketSupply.value).toBe(100)
+    expect(contract.ticketsSold.value).toBe(0)
   })
 })
