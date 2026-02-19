@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import ProfileLoader from './components/ProfileLoader'
 import Landing from './pages/Landing'
+import LandingPageV2 from './pages/LandingPageV2'
 import OrganizerDashboard from './pages/OrganizerDashboard'
 import StudentTickets from './pages/StudentTickets'
 import GateVerifier from './pages/GateVerifier'
@@ -61,6 +62,7 @@ export default function App() {
             <ProfileLoader />
             <Routes>
               <Route path="/" element={<Landing />} />
+              <Route path="/landing-v2" element={<LandingPageV2 />} />
               <Route path="/organizer" element={<OrganizerDashboard />} />
               <Route path="/tickets" element={<StudentTickets />} />
               <Route path="/verify" element={<GateVerifier />} />
