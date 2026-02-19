@@ -41,20 +41,19 @@ export const OnboardingComplete = ({
   }
 
   const submitAuth = async (walletAddress: string) => {
-    if (!role) return
     if (!email || !password) {
       setStatus('error')
       setErrorMsg('Missing email or password. Please go back and try again.')
       return
     }
+    if (authMode === 'signup' && !role) return
 
     setStatus('submitting')
     setErrorMsg(null)
 
     try {
-      const apiRole = mapRole(role)
-
       if (authMode === 'signup') {
+        const apiRole = mapRole(role!)
         const resp = await registerUser({
           name,
           email,
@@ -88,6 +87,10 @@ export const OnboardingComplete = ({
       }
 
       setRole(resp.profile.role)
+      // Set role and name in onboarding store so welcome title renders (login flow skips role/name steps)
+      const storeRole = resp.profile.role === 'organizer' ? 'organiser' : resp.profile.role === 'gate' ? 'guard' : 'student'
+      useOnboardingStore.getState().setRole(storeRole)
+      useOnboardingStore.getState().setName(resp.profile.name ?? '')
       setStatus('done')
       setTimeout(() => onFinish(), 800)
     } catch (e) {
@@ -97,11 +100,12 @@ export const OnboardingComplete = ({
     }
   }
 
+  // Call login or register API when we have wallet + credentials (after Sign In / Sign up or after connecting wallet)
   useEffect(() => {
-    if (!activeAddress) return
+    if (!activeAddress || !email?.trim() || !password) return
     if (status !== 'idle') return
     void submitAuth(String(activeAddress))
-  }, [activeAddress, status])
+  }, [activeAddress, status, email, password])
 
   const dots = useMemo(() => {
     return Array.from({ length: 16 }).map((_, i) => ({

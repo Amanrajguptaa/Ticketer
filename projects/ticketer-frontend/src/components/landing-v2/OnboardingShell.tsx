@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft } from 'lucide-react'
 import { useOnboardingStore } from '../../store/onboardingStore'
 import { NameStep } from './steps/NameStep'
-import { AuthStep } from './steps/AuthStep'
 import { InterestsStep } from './steps/InterestsStep'
 
 export const OnboardingShell = () => {
@@ -17,22 +16,19 @@ export const OnboardingShell = () => {
   const isGuard = role === 'guard'
   const isTwoStepRole = isOrganiser || isGuard
   const isFirstStep = currentStep === 1
-  const stepLabels = isTwoStepRole ? ['Name', 'Account'] : ['Name', 'Account', 'Interests']
+  // Signup flow only: Name, then Interests (students only)
+  const stepLabels = isTwoStepRole ? ['Name'] : ['Name', 'Interests']
   const maxStep = stepLabels.length
 
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <NameStep />
-      case 2:
         return (
-          <AuthStep
-            onComplete={
-              isTwoStepRole ? () => setPhase('complete') : undefined
-            }
+          <NameStep
+            onComplete={isTwoStepRole ? () => setPhase('complete') : undefined}
           />
         )
-      case 3:
+      case 2:
         return isTwoStepRole ? null : <InterestsStep onComplete={() => setPhase('complete')} />
       default:
         return null

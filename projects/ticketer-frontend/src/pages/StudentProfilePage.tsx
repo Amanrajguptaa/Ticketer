@@ -14,7 +14,7 @@ export default function StudentProfilePage() {
     const activeWallet = wallets?.find((w) => w.isActive)
     if (activeWallet) await activeWallet.disconnect()
     clearRole()
-    navigate('/landing-v2', { replace: true })
+    navigate('/', { replace: true })
   }
 
   return <StudentProfile onBack={onBack} onSignOut={onSignOut} />

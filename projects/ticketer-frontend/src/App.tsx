@@ -3,7 +3,7 @@ import { SnackbarProvider } from 'notistack'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import ProfileLoader from './components/ProfileLoader'
-import Landing from './pages/Landing'
+import { ProtectedRoute } from './components/ProtectedRoute'
 import LandingPageV2 from './pages/LandingPageV2'
 import OrganizerDashboard from './pages/OrganizerDashboard'
 import StudentTickets from './pages/StudentTickets'
@@ -67,17 +67,79 @@ export default function App() {
           <BrowserRouter>
             <ProfileLoader />
             <Routes>
-              <Route path="/" element={<Landing />} />
-              <Route path="/landing-v2" element={<LandingPageV2 />} />
-              <Route path="/organizer" element={<OrganizerDashboard />} />
-              <Route path="/student-home" element={<StudentHome />} />
-              <Route path="/profile" element={<StudentProfilePage />} />
-              <Route path="/event/:eventId" element={<EventPage />} />
-              <Route path="/events/group" element={<GroupedEventsPage />} />
-              <Route path="/my-tickets" element={<MyTickets />} />
-              <Route path="/tickets" element={<StudentTickets />} />
-              <Route path="/verify" element={<GateVerifier />} />
-              <Route path="/verify-ticket" element={<VerifyTicketPage />} />
+              <Route path="/" element={<LandingPageV2 />} />
+              <Route
+                path="/organizer"
+                element={
+                  <ProtectedRoute allowedRoles={['organizer']}>
+                    <OrganizerDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/student-home"
+                element={
+                  <ProtectedRoute allowedRoles={['student']}>
+                    <StudentHome />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute allowedRoles={['student']}>
+                    <StudentProfilePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/event/:eventId"
+                element={
+                  <ProtectedRoute allowedRoles={['student']}>
+                    <EventPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/events/group"
+                element={
+                  <ProtectedRoute allowedRoles={['student']}>
+                    <GroupedEventsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/my-tickets"
+                element={
+                  <ProtectedRoute allowedRoles={['student']}>
+                    <MyTickets />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/tickets"
+                element={
+                  <ProtectedRoute allowedRoles={['student']}>
+                    <StudentTickets />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/verify"
+                element={
+                  <ProtectedRoute allowedRoles={['gate']}>
+                    <GateVerifier />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/verify-ticket"
+                element={
+                  <ProtectedRoute allowedRoles={['gate']}>
+                    <VerifyTicketPage />
+                  </ProtectedRoute>
+                }
+              />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </BrowserRouter>

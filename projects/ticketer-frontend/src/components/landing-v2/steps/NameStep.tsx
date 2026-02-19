@@ -10,7 +10,12 @@ import { Button } from '../../ui/Button'
 
 type NameForm = z.infer<typeof nameSchema>
 
-export const NameStep = () => {
+interface NameStepProps {
+  /** When provided, called on submit instead of nextStep (e.g. when this is the last step) */
+  onComplete?: () => void
+}
+
+export const NameStep = ({ onComplete }: NameStepProps) => {
   const nameFromStore = useOnboardingStore((s) => s.name)
   const setName = useOnboardingStore((s) => s.setName)
   const nextStep = useOnboardingStore((s) => s.nextStep)
@@ -34,7 +39,11 @@ export const NameStep = () => {
 
   const onSubmit = () => {
     if (isValid) {
-      nextStep()
+      if (onComplete) {
+        onComplete()
+      } else {
+        nextStep()
+      }
     }
   }
 

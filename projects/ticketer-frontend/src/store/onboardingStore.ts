@@ -83,13 +83,15 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
     }),
   resetOnboarding: () =>
     set((s) => ({
-      ...initialFormData,
-      formData: { ...initialFormData },
+      name: '',
+      interests: [],
+      formData: { ...s.formData, name: '', interests: [] },
       currentStep: 1,
       direction: 'forward',
       role: s.role,
       authMode: s.authMode,
-      password: '',
+      email: s.email,
+      password: s.password,
       searchQuery: '',
       selectedEventId: null,
       selectedCategoryId: null,

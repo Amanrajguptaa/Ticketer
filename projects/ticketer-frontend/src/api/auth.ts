@@ -6,6 +6,8 @@ function getApiBase(): string {
 
 const API_BASE = getApiBase()
 
+// Signup and login are connected to the backend: POST /register, POST /login
+
 export type ApiRole = 'organizer' | 'student' | 'gate'
 
 export interface UserProfile {

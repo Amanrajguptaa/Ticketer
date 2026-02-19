@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   ArrowLeft,
@@ -11,9 +11,16 @@ import {
   Bell,
   Wallet,
   HelpCircle,
+  Copy,
+  Check,
+  Coins,
 } from 'lucide-react'
+import { useWallet } from '@txnlab/use-wallet-react'
+import { AlgorandClient } from '@algorandfoundation/algokit-utils'
 import { useOnboardingStore } from '../../store/onboardingStore'
 import { categories } from '../../data/mockData'
+import { ellipseAddress } from '../../utils/ellipseAddress'
+import { getAlgodConfigFromViteEnvironment, getIndexerConfigFromViteEnvironment } from '../../utils/network/getAlgoClientConfigs'
 
 interface StudentProfileProps {
   onBack: () => void
@@ -64,8 +71,49 @@ const SettingsRow = ({
 export const StudentProfile: React.FC<StudentProfileProps> = ({ onBack, onSignOut }) => {
   const formData = useOnboardingStore((s) => s.formData)
   const { name, email, interests } = formData
+  const { activeAddress } = useWallet()
+  const [balanceAlgo, setBalanceAlgo] = useState<number | null>(null)
+  const [balanceLoading, setBalanceLoading] = useState(true)
+  const [copied, setCopied] = useState(false)
 
   const initials = getInitials(name)
+
+  useEffect(() => {
+    if (!activeAddress) {
+      setBalanceAlgo(null)
+      setBalanceLoading(false)
+      return
+    }
+    let cancelled = false
+    setBalanceLoading(true)
+    const algodConfig = getAlgodConfigFromViteEnvironment()
+    const indexerConfig = getIndexerConfigFromViteEnvironment()
+    const algorand = AlgorandClient.fromConfig({ algodConfig, indexerConfig })
+    algorand.account
+      .getInformation(activeAddress)
+      .then((info) => {
+        if (cancelled) return
+        const microAlgos = Number(info.balance.microAlgos)
+        setBalanceAlgo(microAlgos / 1_000_000)
+      })
+      .catch(() => {
+        if (!cancelled) setBalanceAlgo(null)
+      })
+      .finally(() => {
+        if (!cancelled) setBalanceLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeAddress])
+
+  const copyAddress = () => {
+    if (!activeAddress) return
+    navigator.clipboard.writeText(activeAddress).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
 
   const interestLabels = interests.map((id: string) => {
     const cat = categories.find((c) => c.id === id)
@@ -115,7 +163,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ onBack, onSignOu
               <p className="font-body font-medium text-[14px] md:text-[15px] text-tc-white mt-0.5">{email || '—'}</p>
             </div>
           </div>
-          <div className="flex items-start gap-3 px-4 md:px-6 py-3.5 md:py-4">
+          <div className="flex items-start gap-3 px-4 md:px-6 py-3.5 md:py-4 border-b border-tc-border">
             <Tag className="w-4 h-4 md:w-5 md:h-5 text-tc-muted mt-0.5 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="font-body text-[11px] md:text-xs text-tc-muted uppercase tracking-wider mb-2">Interests</p>
@@ -133,6 +181,44 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ onBack, onSignOu
               ) : (
                 <p className="font-body text-[13px] md:text-[14px] text-tc-muted">No interests set</p>
               )}
+            </div>
+          </div>
+          <div className="flex items-start gap-3 px-4 md:px-6 py-3.5 md:py-4 border-b border-tc-border">
+            <Wallet className="w-4 h-4 md:w-5 md:h-5 text-tc-muted mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="font-body text-[11px] md:text-xs text-tc-muted uppercase tracking-wider">Wallet address</p>
+              {activeAddress ? (
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="font-mono font-medium text-[13px] md:text-[14px] text-tc-white break-all">
+                    {ellipseAddress(activeAddress)}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={copyAddress}
+                    className="shrink-0 p-1.5 rounded-lg text-tc-muted hover:text-tc-lime hover:bg-tc-lime/10 transition-colors"
+                    title="Copy address"
+                  >
+                    {copied ? <Check className="w-4 h-4 text-tc-lime" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+              ) : (
+                <p className="font-body text-[13px] md:text-[14px] text-tc-muted mt-0.5">Not connected</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-start gap-3 px-4 md:px-6 py-3.5 md:py-4">
+            <Coins className="w-4 h-4 md:w-5 md:h-5 text-tc-muted mt-0.5 shrink-0" />
+            <div>
+              <p className="font-body text-[11px] md:text-xs text-tc-muted uppercase tracking-wider">Balance</p>
+              <p className="font-body font-medium text-[14px] md:text-[15px] text-tc-white mt-0.5 tabular-nums">
+                {!activeAddress
+                  ? '—'
+                  : balanceLoading
+                    ? 'Loading…'
+                    : balanceAlgo != null
+                      ? `${balanceAlgo.toFixed(4)} ALGO`
+                      : '—'}
+              </p>
             </div>
           </div>
         </div>

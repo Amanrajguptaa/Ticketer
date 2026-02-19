@@ -45,7 +45,7 @@ export const InterestsStep = ({ onComplete }: { onComplete: () => void }) => {
       <div className="flex items-center gap-2 mb-4">
         <div className="w-4 h-[1px] bg-tc-lime" />
         <span className="font-body font-semibold text-[11px] tracking-[0.2em] text-tc-lime uppercase">
-          Step 03
+          Step 02
         </span>
       </div>
 

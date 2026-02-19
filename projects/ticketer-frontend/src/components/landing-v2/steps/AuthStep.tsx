@@ -258,18 +258,23 @@ const LoginForm = ({ onSubmit }: { onSubmit: (values: LoginValues) => void }) =>
 }
 
 interface AuthStepProps {
+  /** Called when user submits login or signup; auth-first flow (e.g. AuthPhase) */
+  onCompleteWithMode?: (mode: 'login' | 'signup') => void
+  /** Called when user submits; legacy flow when auth is step 2 (OnboardingShell) */
   onComplete?: () => void
 }
 
-export const AuthStep = ({ onComplete }: AuthStepProps) => {
+export const AuthStep = ({ onCompleteWithMode, onComplete }: AuthStepProps) => {
   const name = useOnboardingStore((s) => s.name)
   const nextStep = useOnboardingStore((s) => s.nextStep)
   const setAuthMode = useOnboardingStore((s) => s.setAuthMode)
   const setPassword = useOnboardingStore((s) => s.setPassword)
   const [mode, setMode] = useState<'signup' | 'login'>(() => useOnboardingStore.getState().authMode)
 
-  const handleAuth = () => {
-    if (onComplete) {
+  const handleAuth = (authMode: 'login' | 'signup') => {
+    if (onCompleteWithMode) {
+      onCompleteWithMode(authMode)
+    } else if (onComplete) {
       onComplete()
     } else {
       nextStep()
@@ -287,19 +292,27 @@ export const AuthStep = ({ onComplete }: AuthStepProps) => {
       <div className="flex items-center gap-2 mb-4">
         <div className="w-4 h-[1px] bg-tc-lime" />
         <span className="font-body font-semibold text-[11px] tracking-[0.2em] text-tc-lime uppercase">
-          Step 02
+          {onCompleteWithMode ? 'Sign in or sign up' : 'Step 02'}
         </span>
       </div>
 
       <h1 className="font-display font-extrabold text-[28px] md:text-[34px] text-tc-white leading-[1.15] mb-2">
         {mode === 'signup' ? (
-          <>
-            Create your account, <span className="text-tc-lime">{name}</span>
-          </>
+          name?.trim() ? (
+            <>
+              Create your account, <span className="text-tc-lime">{name}</span>
+            </>
+          ) : (
+            <>Create your account</>
+          )
         ) : (
-          <>
-            Welcome back, <span className="text-tc-lime">{name}</span>
-          </>
+          name?.trim() ? (
+            <>
+              Welcome back, <span className="text-tc-lime">{name}</span>
+            </>
+          ) : (
+            <>Welcome back</>
+          )
         )}
       </h1>
 
@@ -336,7 +349,7 @@ export const AuthStep = ({ onComplete }: AuthStepProps) => {
               onSubmit={(values) => {
                 setAuthMode('signup')
                 setPassword(values.password)
-                handleAuth()
+                handleAuth('signup')
               }}
             />
           </motion.div>
@@ -352,8 +365,9 @@ export const AuthStep = ({ onComplete }: AuthStepProps) => {
             <LoginForm
               onSubmit={(values) => {
                 setAuthMode('login')
+                useOnboardingStore.getState().setEmail(values.email)
                 setPassword(values.password)
-                handleAuth()
+                handleAuth('login')
               }}
             />
           </motion.div>

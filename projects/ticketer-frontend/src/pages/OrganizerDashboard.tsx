@@ -2,6 +2,7 @@ import { useWallet } from '@txnlab/use-wallet-react'
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { QrCode } from 'lucide-react'
 import { AlgorandClient } from '@algorandfoundation/algokit-utils'
 import { AlgoAmount } from '@algorandfoundation/algokit-utils/types/amount'
 import { useAuth } from '../context/AuthContext'
@@ -10,6 +11,7 @@ import { WalletBalance } from '../components/WalletBalance'
 import { createEvent, listEvents, type Event } from '../api/events'
 import { TicketerContractsClient, TicketerContractsFactory } from '../contracts/TicketerContracts'
 import { getAlgodConfigFromViteEnvironment, getIndexerConfigFromViteEnvironment } from '../utils/network/getAlgoClientConfigs'
+import { VerifyTicketDialog } from '../components/VerifyTicketDialog'
 
 type TabId = 'home' | 'events'
 
@@ -148,6 +150,7 @@ export default function OrganizerDashboard() {
   const [withdrawableMicroAlgos, setWithdrawableMicroAlgos] = useState<number | null>(null)
   const [loadingWithdrawable, setLoadingWithdrawable] = useState(false)
   const [withdrawAmountAlgo, setWithdrawAmountAlgo] = useState('')
+  const [verifyDialogOpen, setVerifyDialogOpen] = useState(false)
   const [form, setForm] = useState({
     name: '',
     date: '',
@@ -490,6 +493,14 @@ export default function OrganizerDashboard() {
         <header className="relative z-10 flex-shrink-0 flex items-center justify-between gap-4 px-4 py-3 border-b border-tc-border bg-tc-surface/80 backdrop-blur-sm">
           <span className="font-body text-sm text-tc-muted">{tab === 'home' ? 'Home' : 'Events'}</span>
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setVerifyDialogOpen(true)}
+              className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-tc-lime/40 text-tc-lime hover:bg-tc-lime/15 transition-colors font-body text-sm font-medium"
+            >
+              <QrCode className="w-5 h-5" />
+              Verify tickets
+            </button>
             <WalletBalance address={activeAddress ?? undefined} variant="dark" />
             <button
               type="button"
@@ -810,6 +821,11 @@ export default function OrganizerDashboard() {
           )}
         </main>
       </div>
+
+      <VerifyTicketDialog
+        open={verifyDialogOpen}
+        onClose={() => setVerifyDialogOpen(false)}
+      />
 
       {/* Create Event Modal */}
       {createOpen && (

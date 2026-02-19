@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { MapPin, Bell, Search, X } from 'lucide-react'
 import { useOnboardingStore } from '../../store/onboardingStore'
 import { NotificationsDialog } from './NotificationsDialog'
@@ -13,19 +13,13 @@ const getInitials = (name: string) => {
 
 export const HomeHeader = () => {
   const navigate = useNavigate()
-  const location = useLocation()
   const formData = useOnboardingStore((s) => s.formData)
-  const setPhase = useOnboardingStore((s) => s.setPhase)
   const searchQuery = useOnboardingStore((s) => s.searchQuery)
   const setSearchQuery = useOnboardingStore((s) => s.setSearchQuery)
   const name = formData.name
   const initials = getInitials(name)
 
-  const isStudentHome = location.pathname === '/student-home'
-  const handleProfileClick = () => {
-    if (isStudentHome) navigate('/profile')
-    else setPhase('profile')
-  }
+  const handleProfileClick = () => navigate('/profile')
 
   const [scrolled, setScrolled] = useState(false)
   const [searchFocused, setSearchFocused] = useState(false)

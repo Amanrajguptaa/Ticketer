@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 export type OnboardingPhase =
   | 'intro'
+  | 'auth'
   | 'role-selection'
   | 'onboarding'
   | 'complete'

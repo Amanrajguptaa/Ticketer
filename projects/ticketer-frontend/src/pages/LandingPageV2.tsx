@@ -1,82 +1,46 @@
 import { useState, useEffect } from 'react'
 import { AnimatePresence } from 'framer-motion'
+import { useWallet } from '@txnlab/use-wallet-react'
 import { AppIntro } from '../components/AppIntro'
+import { AuthPhase } from '../components/landing-v2/AuthPhase'
 import { RoleSelection } from '../components/landing-v2/RoleSelection'
 import { OnboardingShell } from '../components/landing-v2/OnboardingShell'
 import { OnboardingComplete } from '../components/landing-v2/OnboardingComplete'
-import GateVerifier from './GateVerifier'
+import { WalletRequiredGate } from '../components/landing-v2/WalletRequiredGate'
+import { useAuth } from '../context/AuthContext'
+import { getRoleHome } from '../components/ProtectedRoute'
 import VerifyTicketPage from './VerifyTicketPage'
 import OrganizerDashboard from './OrganizerDashboard'
 import StudentTickets from './StudentTickets'
 import { useOnboardingStore } from '../store/onboardingStore'
-import type { OnboardingPhase, OnboardingRole } from '../types/onboarding'
+import type { OnboardingPhase } from '../types/onboarding'
 import { useNavigate } from 'react-router-dom'
 
-function PlaceholderHome() {
-  const navigate = useNavigate()
-  return (
-    <div className="min-h-screen bg-tc-bg flex flex-col items-center justify-center px-6 text-tc-white">
-      <h1 className="font-display font-bold text-2xl text-tc-lime mb-4">Home</h1>
-      <p className="font-body text-tc-muted mb-6 text-center max-w-md">
-        Student / Organiser home. Replace this with your main Home view.
-      </p>
-      <button
-        type="button"
-        onClick={() => navigate('/tickets')}
-        className="px-4 py-2 rounded-lg font-body font-medium bg-tc-lime text-tc-bg"
-      >
-        Go to My Tickets
-      </button>
-    </div>
-  )
-}
-
-function PlaceholderProfile({ onBack }: { onBack: () => void }) {
-  return (
-    <div className="min-h-screen bg-tc-bg flex flex-col items-center justify-center px-6 text-tc-white">
-      <h1 className="font-display font-bold text-2xl text-tc-lime mb-4">Profile</h1>
-      <p className="font-body text-tc-muted mb-6 text-center max-w-md">
-        Student profile. Replace with your StudentProfile component.
-      </p>
-      <button
-        type="button"
-        onClick={onBack}
-        className="px-4 py-2 rounded-lg font-body font-medium border border-tc-border text-tc-white"
-      >
-        Back
-      </button>
-    </div>
-  )
-}
-
-function PlaceholderEventPage() {
-  return (
-    <div className="min-h-screen bg-tc-bg flex flex-col items-center justify-center px-6 text-tc-white">
-      <h1 className="font-display font-bold text-2xl text-tc-lime mb-4">Event details</h1>
-      <p className="font-body text-tc-muted text-center max-w-md">
-        Event page. Replace with your EventPage component.
-      </p>
-    </div>
-  )
-}
-
-function PlaceholderGroupedEvents() {
-  return (
-    <div className="min-h-screen bg-tc-bg flex flex-col items-center justify-center px-6 text-tc-white">
-      <h1 className="font-display font-bold text-2xl text-tc-lime mb-4">Grouped events</h1>
-      <p className="font-body text-tc-muted text-center max-w-md">
-        Grouped events. Replace with your GroupedEventsPage component.
-      </p>
-    </div>
-  )
-}
+const SESSION_CHECK_MS = 400
 
 export default function LandingPageV2() {
   const navigate = useNavigate()
+  const { role: authRole } = useAuth()
+  const { activeAddress } = useWallet()
   const [phase, setPhase] = useState<OnboardingPhase>('intro')
+  const [sessionChecked, setSessionChecked] = useState(false)
   const role = useOnboardingStore((s) => s.role)
+  const authMode = useOnboardingStore((s) => s.authMode)
   const setStoreRole = useOnboardingStore((s) => s.setRole)
   const resetOnboarding = useOnboardingStore((s) => s.resetOnboarding)
+
+  // Give wallet time to reconnect and ProfileLoader to restore session from localStorage
+  useEffect(() => {
+    const t = setTimeout(() => setSessionChecked(true), SESSION_CHECK_MS)
+    return () => clearTimeout(t)
+  }, [])
+
+  // If wallet is connected + valid session in localStorage, ProfileLoader sets role → redirect to dashboard
+  useEffect(() => {
+    if (authRole) {
+      navigate(getRoleHome(authRole), { replace: true })
+    }
+  }, [authRole, navigate])
 
   useEffect(() => {
     useOnboardingStore.setState({
@@ -101,6 +65,16 @@ export default function LandingPageV2() {
     }
   }, [phase, role, navigate])
 
+  // Don't flash landing when already authenticated (session restored from localStorage)
+  if (authRole) {
+    return null
+  }
+
+  // Brief wait for wallet reconnect + session restore so we don't flash intro then redirect
+  if (!sessionChecked) {
+    return null
+  }
+
   const renderPhase = () => {
     switch (phase) {
       case 'intro':
@@ -113,13 +87,27 @@ export default function LandingPageV2() {
             key="role-selection"
             onSelect={(selectedRole) => {
               setStoreRole(selectedRole)
-              setPhase('onboarding')
+              setPhase('auth')
             }}
           />
         )
+      case 'auth':
+        return (
+          <AuthPhase
+            key="auth"
+            onLoginComplete={() => setPhase('complete')}
+            onSignupComplete={() => setPhase('onboarding')}
+          />
+        )
       case 'onboarding':
+        if (authMode === 'signup' && !activeAddress) {
+          return <WalletRequiredGate key="wallet-gate" />
+        }
         return <OnboardingShell key="onboarding" />
       case 'complete':
+        if (authMode === 'signup' && !activeAddress) {
+          return <WalletRequiredGate key="wallet-gate" />
+        }
         return (
           <OnboardingComplete
             key="complete"
@@ -137,20 +125,9 @@ export default function LandingPageV2() {
         if (role === 'student') {
           return <StudentTickets key="student-tickets" />
         }
-        return <PlaceholderHome key="home" />
-      case 'profile':
-        return (
-          <PlaceholderProfile
-            key="profile"
-            onBack={() => setPhase('home')}
-          />
-        )
-      case 'event-details':
-        return <PlaceholderEventPage key="event-details" />
-      case 'grouped-events':
-        return <PlaceholderGroupedEvents key="grouped-events" />
+        return null
       default:
-        return <PlaceholderHome key="home" />
+        return null
     }
   }
 
