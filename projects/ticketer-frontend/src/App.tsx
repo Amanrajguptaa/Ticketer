@@ -7,7 +7,12 @@ import Landing from './pages/Landing'
 import LandingPageV2 from './pages/LandingPageV2'
 import OrganizerDashboard from './pages/OrganizerDashboard'
 import StudentTickets from './pages/StudentTickets'
+import MyTickets from './pages/MyTickets'
 import GateVerifier from './pages/GateVerifier'
+import StudentHome from './pages/StudentHome'
+import StudentProfilePage from './pages/StudentProfilePage'
+import { EventPage } from './components/home/EventPage'
+import { GroupedEventsPage } from './components/home/GroupedEventsPage'
 import { getAlgodConfigFromViteEnvironment, getKmdConfigFromViteEnvironment } from './utils/network/getAlgoClientConfigs'
 
 let supportedWallets: SupportedWallet[]
@@ -64,6 +69,11 @@ export default function App() {
               <Route path="/" element={<Landing />} />
               <Route path="/landing-v2" element={<LandingPageV2 />} />
               <Route path="/organizer" element={<OrganizerDashboard />} />
+              <Route path="/student-home" element={<StudentHome />} />
+              <Route path="/profile" element={<StudentProfilePage />} />
+              <Route path="/event/:eventId" element={<EventPage />} />
+              <Route path="/events/group" element={<GroupedEventsPage />} />
+              <Route path="/my-tickets" element={<MyTickets />} />
               <Route path="/tickets" element={<StudentTickets />} />
               <Route path="/verify" element={<GateVerifier />} />
               <Route path="*" element={<Navigate to="/" replace />} />

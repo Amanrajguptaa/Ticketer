@@ -71,6 +71,7 @@ function PlaceholderGroupedEvents() {
 }
 
 export default function LandingPageV2() {
+  const navigate = useNavigate()
   const [phase, setPhase] = useState<OnboardingPhase>('intro')
   const role = useOnboardingStore((s) => s.role)
   const setStoreRole = useOnboardingStore((s) => s.setRole)
@@ -87,6 +88,12 @@ export default function LandingPageV2() {
       resetOnboarding()
     }
   }, [phase, resetOnboarding])
+
+  useEffect(() => {
+    if (phase === 'home' && role === 'student') {
+      navigate('/student-home', { replace: true })
+    }
+  }, [phase, role, navigate])
 
   const renderPhase = () => {
     switch (phase) {
@@ -108,7 +115,11 @@ export default function LandingPageV2() {
         return <OnboardingShell key="onboarding" />
       case 'complete':
         return (
-          <OnboardingComplete key="complete" onFinish={() => setPhase('home')} />
+          <OnboardingComplete
+            key="complete"
+            onFinish={() => setPhase('home')}
+            onBackToRoles={() => setPhase('role-selection')}
+          />
         )
       case 'home':
         if (role === 'guard') {

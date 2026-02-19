@@ -6,9 +6,13 @@ import ConnectWallet from '../ConnectWallet'
 import { useAuth } from '../../context/AuthContext'
 import { loginUser, registerUser } from '../../api/auth'
 import { getProfile } from '../../api/profile'
-import { useSnackbar } from 'notistack'
-
-export const OnboardingComplete = ({ onFinish }: { onFinish: () => void }) => {
+export const OnboardingComplete = ({
+  onFinish,
+  onBackToRoles,
+}: {
+  onFinish: () => void
+  onBackToRoles?: () => void
+}) => {
   const name = useOnboardingStore((s) => s.name)
   const role = useOnboardingStore((s) => s.role)
   const email = useOnboardingStore((s) => s.email)
@@ -17,7 +21,6 @@ export const OnboardingComplete = ({ onFinish }: { onFinish: () => void }) => {
   const password = useOnboardingStore((s) => s.password)
   const { activeAddress } = useWallet()
   const { setRole } = useAuth()
-  const { enqueueSnackbar } = useSnackbar()
   const [openWalletModal, setOpenWalletModal] = useState(false)
   const [status, setStatus] = useState<'idle' | 'submitting' | 'done' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -43,7 +46,6 @@ export const OnboardingComplete = ({ onFinish }: { onFinish: () => void }) => {
     if (!email || !password) {
       setStatus('error')
       setErrorMsg('Missing email or password. Please go back and try again.')
-      enqueueSnackbar('Missing email or password. Go back and try again.', { variant: 'error' })
       return
     }
 
@@ -58,9 +60,7 @@ export const OnboardingComplete = ({ onFinish }: { onFinish: () => void }) => {
         // Signup flow: never auto-login. If an account already exists for this wallet, show an error.
         if (existing) {
           setStatus('error')
-          const msg = 'Account already exists for this wallet. Please log in instead.'
-          setErrorMsg(msg)
-          enqueueSnackbar(msg, { variant: 'warning' })
+          setErrorMsg('This wallet is already registered. Go back and choose Log in instead of Sign up.')
           return
         }
 
@@ -82,7 +82,6 @@ export const OnboardingComplete = ({ onFinish }: { onFinish: () => void }) => {
 
         setRole(resp.profile.role)
         setStatus('done')
-        enqueueSnackbar('Account created successfully.', { variant: 'success' })
         setTimeout(() => onFinish(), 800)
         return
       }
@@ -90,9 +89,7 @@ export const OnboardingComplete = ({ onFinish }: { onFinish: () => void }) => {
       // Login flow
       if (!existing) {
         setStatus('error')
-        const msg = 'Account not found for this wallet. Please sign up first.'
-        setErrorMsg(msg)
-        enqueueSnackbar(msg, { variant: 'error' })
+        setErrorMsg('No account found for this wallet. Go back and choose Sign up first.')
         return
       }
 
@@ -107,14 +104,11 @@ export const OnboardingComplete = ({ onFinish }: { onFinish: () => void }) => {
 
       setRole(resp.profile.role)
       setStatus('done')
-      enqueueSnackbar('Signed in successfully.', { variant: 'success' })
       setTimeout(() => onFinish(), 800)
     } catch (e) {
       console.error(e)
       setStatus('error')
-      const msg = e instanceof Error ? e.message : 'Authentication failed'
-      setErrorMsg(msg)
-      enqueueSnackbar(msg, { variant: 'error' })
+      setErrorMsg(e instanceof Error ? e.message : 'Something went wrong. Please try again.')
     }
   }
 
@@ -293,11 +287,15 @@ export const OnboardingComplete = ({ onFinish }: { onFinish: () => void }) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1.2, duration: 0.5 }}
-            className="mt-8"
+            className="mt-8 w-full flex flex-col items-center"
           >
             <button
               type="button"
               onClick={() => {
+                if (status === 'error' && onBackToRoles) {
+                  onBackToRoles()
+                  return
+                }
                 if (activeAddress && status === 'error') {
                   void submitAuth(String(activeAddress))
                   return
@@ -316,9 +314,18 @@ export const OnboardingComplete = ({ onFinish }: { onFinish: () => void }) => {
                   : 'Connect Wallet'}
             </button>
             {errorMsg && (
-              <p className="mt-3 text-center font-body text-[12px] text-tc-coral">
-                {errorMsg}
-              </p>
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-4 w-full max-w-sm px-4 py-3 rounded-xl bg-tc-surface border border-tc-border text-center"
+              >
+                <p className="font-body text-[13px] text-tc-white leading-snug">
+                  {errorMsg}
+                </p>
+                <p className="mt-1.5 font-body text-[11px] text-tc-muted">
+                  Use the button above to try again or connect a different wallet.
+                </p>
+              </motion.div>
             )}
           </motion.div>
         </div>
