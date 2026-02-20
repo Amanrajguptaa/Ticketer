@@ -41,7 +41,7 @@
 
 ## Live demo URL
 
-**Live demo:** [Add your live demo URL here]
+**Live demo:** https://ticketerr.vercel.app
 
 ---
 
@@ -51,12 +51,9 @@
 
 ---
 
-## App ID (Testnet) and Testnet explorer link
+## App ID (Testnet) for Algokit
 
-- **App ID (Testnet):** [Add your deployed app ID here]
-- **Testnet explorer:** [Add Algorand Testnet explorer link for your app]
-
----
+- **App ID (Testnet):** **1067**
 
 ## Architecture overview — smart contract + frontend interaction
 
@@ -153,16 +150,6 @@ After pulling updates with new dependencies, run `algokit project bootstrap all`
 - Event list and user profiles are off-chain (API/DB); only ownership and verification are on-chain.
 - Default deployment targets Testnet; MainNet requires config and funding.
 - QR content for verification must match the format expected by the app.
-
----
-
-## Team members and roles
-
-| Name       | Role / contribution                    |
-|------------|----------------------------------------|
-| [Name 1]   | [e.g. Smart contracts & backend]       |
-| [Name 2]   | [e.g. Frontend & integration]          |
-| [Name 3]   | [e.g. QA & documentation]              |
 
 ---
 
