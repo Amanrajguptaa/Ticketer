@@ -38,7 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const clearRole = useCallback(() => {
     setRoleState(null)
     try {
-      localStorage.removeItem(ROLE_STORAGE_KEY)
+      localStorage.clear()
     } catch {
       // ignore
     }

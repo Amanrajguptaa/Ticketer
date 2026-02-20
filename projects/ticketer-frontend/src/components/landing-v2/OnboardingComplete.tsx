@@ -5,6 +5,7 @@ import { useOnboardingStore } from '../../store/onboardingStore'
 import ConnectWallet from '../ConnectWallet'
 import { useAuth } from '../../context/AuthContext'
 import { loginUser, registerUser } from '../../api/auth'
+import { saveAuth, saveProfile } from '../../utils/authStorage'
 export const OnboardingComplete = ({
   onFinish,
   onBackToRoles,
@@ -63,13 +64,8 @@ export const OnboardingComplete = ({
           hobbies: apiRole === 'student' ? interests : [],
         })
 
-        try {
-          localStorage.setItem('ticketer.token', resp.token)
-          localStorage.setItem('ticketer.walletAddress', resp.profile.walletAddress)
-        } catch {
-          // ignore
-        }
-
+        saveAuth(resp.token, resp.profile.walletAddress)
+        saveProfile(resp.profile)
         setRole(resp.profile.role)
         setStatus('done')
         setTimeout(() => onFinish(), 800)
@@ -78,19 +74,16 @@ export const OnboardingComplete = ({
 
       // Login flow
       const resp = await loginUser({ email, password, walletAddress })
-
-      try {
-        localStorage.setItem('ticketer.token', resp.token)
-        localStorage.setItem('ticketer.walletAddress', resp.profile.walletAddress)
-      } catch {
-        // ignore
-      }
-
+      saveAuth(resp.token, resp.profile.walletAddress)
+      saveProfile(resp.profile)
       setRole(resp.profile.role)
-      // Set role and name in onboarding store so welcome title renders (login flow skips role/name steps)
       const storeRole = resp.profile.role === 'organizer' ? 'organiser' : resp.profile.role === 'gate' ? 'guard' : 'student'
       useOnboardingStore.getState().setRole(storeRole)
-      useOnboardingStore.getState().setName(resp.profile.name ?? '')
+      useOnboardingStore.getState().setFormData({
+        name: resp.profile.name ?? '',
+        email: resp.profile.email ?? '',
+        interests: resp.profile.hobbies ?? [],
+      })
       setStatus('done')
       setTimeout(() => onFinish(), 800)
     } catch (e) {

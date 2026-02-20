@@ -6,7 +6,11 @@ function getApiBase(): string {
 
 const API_BASE = getApiBase()
 
-// Signup and login are connected to the backend: POST /register, POST /login
+/**
+ * Auth API: POST /register and POST /login.
+ * Both return { token, profile }. Store the JWT with saveAuth() from utils/authStorage;
+ * ProfileLoader then uses it for auto-login when the wallet is connected.
+ */
 
 export type ApiRole = 'organizer' | 'student' | 'gate'
 
@@ -58,6 +62,22 @@ export async function loginUser(input: {
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
     throw new Error((data as { error?: string }).error || 'Failed to login')
+  }
+  return res.json()
+}
+
+/** Fetch current user profile (name, email, hobbies, etc.) using JWT. */
+export async function getMe(token: string): Promise<UserProfile> {
+  const res = await fetch(`${API_BASE}/api/me`, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error((data as { error?: string }).error || 'Failed to fetch profile')
   }
   return res.json()
 }

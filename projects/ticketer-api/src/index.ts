@@ -123,34 +123,7 @@ app.get('/api/nft-metadata', async (req, res) => {
   }
 })
 
-// GET /api/profile?wallet=0x...
-app.get('/api/profile', async (req, res) => {
-  const wallet = normalizeWallet(req.query.wallet as string)
-  if (!wallet) {
-    return res.status(400).json({ error: 'Missing wallet query parameter' })
-  }
-  try {
-    const profile = await prisma.userProfile.findFirst({
-      where: { walletAddress: wallet },
-      orderBy: { createdAt: 'desc' },
-    })
-    if (!profile) {
-      return res.status(404).json({ error: 'Profile not found' })
-    }
-    return res.json({ walletAddress: profile.walletAddress, role: profile.role })
-  } catch (e) {
-    if (isDbConnectionError(e)) {
-      return res.status(503).json({
-        error: 'Database unavailable',
-        hint: 'Neon may be unreachable from this network. Check .env DATABASE_URL or try again in a few seconds.',
-      })
-    }
-    console.error(e)
-    return res.status(500).json({ error: 'Database error' })
-  }
-})
-
-// POST /auth/register — create account: { name, email, password, role, walletAddress, hobbies? }
+// POST /register and POST /login (JWT auth) — create account: { name, email, password, role, walletAddress, hobbies? }
 async function handleRegister(req: express.Request, res: express.Response) {
   const name = typeof req.body?.name === 'string' ? req.body.name.trim() : ''
   const email = normalizeEmail(req.body?.email)
@@ -223,7 +196,50 @@ async function handleRegister(req: express.Request, res: express.Response) {
 app.post('/register', handleRegister)
 app.post('/login', async (req, res) => handleLogin(req, res))
 
-app.post('/auth/register', handleRegister)
+// GET /api/me — fetch current user profile (Authorization: Bearer <token>)
+app.get('/api/me', async (req, res) => {
+  const authHeader = req.headers.authorization
+  const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+    ? authHeader.slice(7).trim()
+    : null
+  if (!token) {
+    return res.status(401).json({ error: 'Missing or invalid Authorization header' })
+  }
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId?: string; walletAddress?: string; role?: ApiRole }
+    const userId = decoded.userId
+    if (!userId) {
+      return res.status(401).json({ error: 'Invalid token' })
+    }
+    const user = await prisma.userProfile.findUnique({
+      where: { id: userId },
+    })
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+    return res.json({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+      hobbies: user.hobbies,
+      walletAddress: user.walletAddress,
+      role: user.role,
+    })
+  } catch (e) {
+    if (e && typeof e === 'object' && 'name' in e && (e as { name: string }).name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Token expired' })
+    }
+    if (e && typeof e === 'object' && 'name' in e && (e as { name: string }).name === 'JsonWebTokenError') {
+      return res.status(401).json({ error: 'Invalid token' })
+    }
+    if (isDbConnectionError(e)) {
+      return res.status(503).json({ error: 'Database unavailable' })
+    }
+    console.error(e)
+    return res.status(500).json({ error: 'Server error' })
+  }
+})
 
 async function handleLogin(req: express.Request, res: express.Response) {
   const email = normalizeEmail(req.body?.email)
@@ -266,43 +282,6 @@ async function handleLogin(req: express.Request, res: express.Response) {
     return res.status(500).json({ error: 'Server error' })
   }
 }
-
-app.post('/auth/login', handleLogin)
-
-// POST /api/profile — sign up: { wallet, role }
-app.post('/api/profile', async (req, res) => {
-  const wallet = normalizeWallet(req.body?.wallet)
-  const role = req.body?.role
-  const validRoles = ['organizer', 'student', 'gate']
-  if (!wallet) {
-    return res.status(400).json({ error: 'Missing wallet' })
-  }
-  if (!role || !validRoles.includes(role)) {
-    return res.status(400).json({ error: 'Invalid role. Use organizer, student, or gate' })
-  }
-  try {
-    const existing = await prisma.userProfile.findFirst({
-      where: { walletAddress: wallet },
-      orderBy: { createdAt: 'desc' },
-    })
-    if (existing) {
-      return res.status(409).json({ error: 'Profile already exists', role: existing.role })
-    }
-    const profile = await prisma.userProfile.create({
-      data: { walletAddress: wallet, role, name: 'Unnamed', email: `${wallet}@wallet.local`, password: 'legacy', hobbies: [] },
-    })
-    return res.status(201).json({ walletAddress: profile.walletAddress, role: profile.role })
-  } catch (e) {
-    if (isDbConnectionError(e)) {
-      return res.status(503).json({
-        error: 'Database unavailable',
-        hint: 'Neon may be unreachable. Check DATABASE_URL or try again in a few seconds.',
-      })
-    }
-    console.error(e)
-    return res.status(500).json({ error: 'Database error' })
-  }
-})
 
 // GET /api/events — list events (optional ?organizer=wallet to filter by organizer)
 app.get('/api/events', async (req, res) => {
