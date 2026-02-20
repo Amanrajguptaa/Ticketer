@@ -47,7 +47,7 @@
 
 ## LinkedIn demo video URL
 
-**LinkedIn demo video:** [Add your LinkedIn demo video URL here]
+**LinkedIn demo video:** https://www.linkedin.com/posts/nishchay-bhatia_team-vod-rift-activity-7430437116611862528-kXtk?utm_source=share&utm_medium=member_desktop&rcm=ACoAAESm_jgBSzIH7rOg7mJj0-PITKFqVqyMlQM
 
 ---
 
