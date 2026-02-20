@@ -51,9 +51,10 @@
 
 ---
 
-## App ID (Testnet) for Algokit
+## App ID (Testnet) and Explorer Link for Algokit
 
 - **App ID (Testnet):** **1067**
+- **App Explorer:** https://testnet.explorer.perawallet.app/address/IN7MAEHX3NGDS7IPERKW3LXV5CE3CX45YYB2KU424NQ3VHYZABUMDL2J7Y
 
 ## Architecture overview — smart contract + frontend interaction
 
