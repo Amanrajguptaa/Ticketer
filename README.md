@@ -4,7 +4,6 @@ This starter full stack project has been generated using AlgoKit. See below for 
 
 ## Setup
 
-
 ### Initial setup
 1. Clone this repository to your local machine.
 2. Ensure [Docker](https://www.docker.com/) is installed and operational. Then, install `AlgoKit` following this [guide](https://github.com/algorandfoundation/algokit-cli#install).
