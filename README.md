@@ -15,7 +15,7 @@
 - Ticket purchase page with wallet integration
 - Ticket verification system (QR code scanner or address/ticket ID checker)
 - User dashboard showing owned tickets
-- Optional: ticket transfer/resale via smart contract
+- Fully Responsive Mobile App Design
 
 **Technical components:**
 - Frontend: React with QR code support
